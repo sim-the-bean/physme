@@ -33,7 +33,6 @@ fn setup(
 ) {
     let cube = meshes.add(shape::Cube { size: 0.5 }.into());
     let bigcube = meshes.add(shape::Cube { size: 8.0 }.into());
-    let smallcube = meshes.add(shape::Cube { size: 0.2 }.into());
     commands
         .spawn(LightComponents {
             transform: Transform::from_translation(Vec3::new(0.0, 5.0, 5.0)),
@@ -93,19 +92,6 @@ fn setup(
         )
         .with_children(|parent| {
             parent.spawn((Shape::from(Size3::new(16.0, 16.0, 16.0)),));
-        })
-        .spawn(PbrComponents {
-            mesh: smallcube,
-            material: materials.add(Color::rgb(0.2, 0.8, 0.2).into()),
-            ..Default::default()
-        })
-        .with(
-            RigidBody::new(Mass::Infinite)
-                .with_status(Status::Static)
-                .with_position(Vec3::new(-3.0, 0.0, -3.0)),
-        )
-        .with_children(|parent| {
-            parent.spawn((Shape::from(Size3::new(0.4, 0.4, 0.4)),));
         });
 }
 
