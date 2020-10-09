@@ -4,6 +4,7 @@ use physme::prelude2d::*;
 #[derive(Default)]
 pub struct CharacterController {
     on_ground: bool,
+    jump: bool,
 }
 
 fn main() {
@@ -111,7 +112,7 @@ fn setup(
         .with(
             RigidBody::new(Mass::Real(1.0))
                 .with_status(Status::Semikinematic)
-                .with_position(Vec2::new(-30.0, 0.0)),
+                .with_position(Vec2::new(0.0, 60.0)),
         )
         .with_children(|parent| {
             parent.spawn((Shape::from(Size::new(20.0, 20.0)),));
@@ -150,9 +151,13 @@ fn character_system(
     }
 
     for (mut controller, mut body) in &mut query.iter() {
+        if input.just_pressed(KeyCode::Space) || input.just_pressed(KeyCode::W) {
+            controller.jump = true;
+        }
         if controller.on_ground {
-            if input.just_pressed(KeyCode::Space) || input.just_pressed(KeyCode::W) {
+            if controller.jump {
                 body.apply_force(Vec2::new(0.0, 12000.0));
+                controller.jump = false;
             }
         }
         if input.pressed(KeyCode::A) {

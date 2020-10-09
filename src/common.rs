@@ -22,6 +22,13 @@ impl Mass {
             Self::Real(mass) => mass.recip(),
         }
     }
+
+    pub fn scalar(self) -> f32 {
+        match self {
+            Self::Infinite => 0.0,
+            Self::Real(mass) => mass,
+        }
+    }
 }
 
 impl From<f32> for Mass {

@@ -221,7 +221,9 @@ pub struct RigidBody {
     prev_velocity: Vec2,
     pub terminal: Vec2,
     accumulator: Vec2,
+    dynamic_acc: Vec2,
     pub status: Status,
+    mass: f32,
     inv_mass: f32,
     pub restitution: f32,
     active: bool,
@@ -238,7 +240,9 @@ impl RigidBody {
             prev_velocity: Vec2::zero(),
             terminal: Vec2::new(f32::INFINITY, f32::INFINITY),
             accumulator: Vec2::zero(),
+            dynamic_acc: Vec2::zero(),
             status: Status::Semikinematic,
+            mass: mass.scalar(),
             inv_mass: mass.inverse(),
             restitution: 0.5,
             active: true,
@@ -326,6 +330,7 @@ pub struct Manifold {
     pub body2: Entity,
     pub penetration: Vec2,
     pub normals: Vec2,
+    pub pnormal: Vec2,
     pub contained: [Contained; 2],
 }
 
@@ -412,6 +417,21 @@ fn narrow_phase_system(
                 let b_y_contained = collider2.min.y() >= collider1.min.y()
                     && collider2.max.y() <= collider1.max.y();
 
+                let pn_x1 = (collider2.max.x() - collider1.min.x()).abs();
+                let pn_x2 = (collider2.min.x() - collider1.max.x()).abs();
+                let pn_y1 = (collider2.max.y() - collider1.min.y()).abs();
+                let pn_y2 = (collider2.min.y() - collider1.max.y()).abs();
+                let min = pn_x1.min(pn_x2).min(pn_y1).min(pn_y2);
+                let pnormal = if min == pn_x1 {
+                    Vec2::new(1.0, 0.0)
+                } else if min == pn_x2 {
+                    Vec2::new(-1.0, 0.0)
+                } else if min == pn_y1 {
+                    Vec2::new(0.0, 1.0)
+                } else {
+                    Vec2::new(0.0, -1.0)
+                };
+
                 let n_x = if d.x() < 0.0 { -1.0 } else { 1.0 };
                 let n_y = if d.y() < 0.0 { -1.0 } else { 1.0 };
                 let manifold = Manifold {
@@ -419,6 +439,7 @@ fn narrow_phase_system(
                     body2: collider2.body,
                     penetration: Vec2::new(x_overlap, y_overlap),
                     normals: Vec2::new(n_x, n_y),
+                    pnormal,
                     contained: [
                         Contained {
                             x: a_x_contained,
@@ -469,39 +490,78 @@ fn solve_system(
             continue;
         }
 
-        mem::drop(a);
-        mem::drop(b);
-
         let mut a_maybe_step = None;
         let mut b_maybe_step = None;
+        let dont_x = a.status == Status::Semikinematic
+            && b.status == Status::Semikinematic
+            && manifold.pnormal.x() == 0.0;
+        let mut pushed_x = false;
 
-        {
+        if !dont_x {
+            let dynamics = if a.status == Status::Semikinematic
+                && b.status == Status::Semikinematic
+                && manifold.pnormal.x() != 0.0
+            {
+                let sum_recip = (a.mass + b.mass).recip();
+                let br = b.velocity.x() * b.mass;
+                let ar = a.velocity.x() * a.mass;
+                let rv = br * sum_recip - ar * sum_recip;
+
+                let impulse = -rv * manifold.normals.x();
+
+                let a = a.velocity.x() - impulse;
+                let b = b.velocity.x() + impulse;
+                Some((a, b))
+            } else {
+                None
+            };
+            mem::drop(a);
+            mem::drop(b);
+
+            pushed_x = dynamics.is_some();
+
             let mut a = query.get_mut::<RigidBody>(manifold.body1).unwrap();
             match a.status {
                 Status::Static => {}
                 Status::Semikinematic => {
-                    let mut solve = true;
-                    if let Ok(collisions) = query.get::<Collisions>(manifold.body1) {
-                        for info in &collisions.x {
-                            if info.other == manifold.body2 {
-                                solve = false;
-                                break;
-                            }
-                        }
-                    }
-                    if solve {
+                    if let Some((impulse, _)) = dynamics {
+                        *a.dynamic_acc.x_mut() += impulse;
+
                         if !manifold.contained[0].x {
                             let d = -manifold.normals.x() * manifold.penetration.x();
                             let v = a.velocity.x() * delta_time;
                             if v.signum() == d.signum() {
                                 // nothing
                             } else {
-                                if step.axis == StepAxis::Y {
-                                    a_maybe_step = Some((-d, a.velocity.x()));
-                                }
                                 a.solved.x = true;
                                 *a.velocity.x_mut() = 0.0;
                                 *a.position.x_mut() += d;
+                            }
+                        }
+                    } else {
+                        let mut solve = true;
+                        if let Ok(collisions) = query.get::<Collisions>(manifold.body1) {
+                            for info in &collisions.x {
+                                if info.other == manifold.body2 {
+                                    solve = false;
+                                    break;
+                                }
+                            }
+                        }
+                        if solve {
+                            if !manifold.contained[0].x {
+                                let d = -manifold.normals.x() * manifold.penetration.x();
+                                let v = a.velocity.x() * delta_time;
+                                if v.signum() == d.signum() {
+                                    // nothing
+                                } else {
+                                    if step.axis == StepAxis::Y {
+                                        a_maybe_step = Some((-d, a.velocity.x()));
+                                    }
+                                    a.solved.x = true;
+                                    *a.velocity.x_mut() = 0.0;
+                                    *a.position.x_mut() += d;
+                                }
                             }
                         }
                     }
@@ -513,72 +573,114 @@ fn solve_system(
             match b.status {
                 Status::Static => {}
                 Status::Semikinematic => {
-                    let mut solve = true;
-                    if let Ok(collisions) = query.get::<Collisions>(manifold.body2) {
-                        for info in &collisions.x {
-                            if info.other == manifold.body1 {
-                                solve = false;
-                                break;
-                            }
-                        }
-                    }
-                    if solve {
+                    if let Some((_, impulse)) = dynamics {
+                        *b.dynamic_acc.x_mut() += impulse;
+
                         if !manifold.contained[1].x {
                             let d = manifold.normals.x() * manifold.penetration.x();
                             let v = b.velocity.x() * delta_time;
                             if v.signum() == d.signum() {
                                 // nothing
                             } else {
-                                if step.axis == StepAxis::Y {
-                                    b_maybe_step = Some((-d, b.velocity.x()));
-                                }
                                 b.solved.x = true;
                                 *b.velocity.x_mut() = 0.0;
                                 *b.position.x_mut() += d;
+                            }
+                        }
+                    } else {
+                        let mut solve = true;
+                        if let Ok(collisions) = query.get::<Collisions>(manifold.body2) {
+                            for info in &collisions.x {
+                                if info.other == manifold.body1 {
+                                    solve = false;
+                                    break;
+                                }
+                            }
+                        }
+                        if solve {
+                            if !manifold.contained[1].x {
+                                let d = manifold.normals.x() * manifold.penetration.x();
+                                let v = b.velocity.x() * delta_time;
+                                if v.signum() == d.signum() {
+                                    // nothing
+                                } else {
+                                    if step.axis == StepAxis::Y {
+                                        b_maybe_step = Some((-d, b.velocity.x()));
+                                    }
+                                    b.solved.x = true;
+                                    *b.velocity.x_mut() = 0.0;
+                                    *b.position.x_mut() += d;
+                                }
                             }
                         }
                     }
                 }
             }
             mem::drop(b);
+        } else {
+            mem::drop(a);
+            mem::drop(b);
         }
 
-        {
+        let a = query.get::<RigidBody>(manifold.body1).unwrap();
+        let b = query.get::<RigidBody>(manifold.body2).unwrap();
+
+        if !pushed_x {
+            let dynamics = a.status == Status::Semikinematic
+                && b.status == Status::Semikinematic
+                && manifold.pnormal.y() != 0.0;
+            mem::drop(a);
+            mem::drop(b);
+
             let mut a = query.get_mut::<RigidBody>(manifold.body1).unwrap();
             match a.status {
                 Status::Static => {}
                 Status::Semikinematic => {
-                    let mut solve = true;
-                    if let Ok(collisions) = query.get::<Collisions>(manifold.body1) {
-                        for info in &collisions.y {
-                            if info.other == manifold.body2 {
-                                solve = false;
-                                break;
-                            }
-                        }
-                    }
-                    if solve {
+                    if dynamics {
                         if !manifold.contained[0].y {
                             let d = -manifold.normals.y() * manifold.penetration.y();
-                            if a_maybe_step.is_some()
-                                && step.axis == StepAxis::Y
-                                && d > 0.0
-                                && dbg!(d) <= dbg!(step.step)
-                            {
-                                let (dx, vx) = a_maybe_step.unwrap();
-                                *a.position.y_mut() += d;
-                                *a.position.x_mut() += dx;
-                                *a.velocity.x_mut() = vx;
-                                a.solved.x = false;
-                                a.solved.y = true;
+                            let v = a.velocity.y();
+                            if v.signum() == d.signum() {
+                                // nothing
                             } else {
-                                let v = a.velocity.y();
-                                if v.signum() == d.signum() {
-                                    // nothing
-                                } else {
-                                    a.solved.y = true;
-                                    *a.velocity.y_mut() = 0.0;
+                                a.solved.y = true;
+                                *a.velocity.y_mut() = 0.0;
+                                *a.position.y_mut() += d;
+                            }
+                        }
+                    } else {
+                        let mut solve = true;
+                        if let Ok(collisions) = query.get::<Collisions>(manifold.body1) {
+                            for info in &collisions.y {
+                                if info.other == manifold.body2 {
+                                    solve = false;
+                                    break;
+                                }
+                            }
+                        }
+                        if solve {
+                            if !manifold.contained[0].y {
+                                let d = -manifold.normals.y() * manifold.penetration.y();
+                                if a_maybe_step.is_some()
+                                    && step.axis == StepAxis::Y
+                                    && d > 0.0
+                                    && dbg!(d) <= dbg!(step.step)
+                                {
+                                    let (dx, vx) = a_maybe_step.unwrap();
                                     *a.position.y_mut() += d;
+                                    *a.position.x_mut() += dx;
+                                    *a.velocity.x_mut() = vx;
+                                    a.solved.x = false;
+                                    a.solved.y = true;
+                                } else {
+                                    let v = a.velocity.y();
+                                    if v.signum() == d.signum() {
+                                        // nothing
+                                    } else {
+                                        a.solved.y = true;
+                                        *a.velocity.y_mut() = 0.0;
+                                        *a.position.y_mut() += d;
+                                    }
                                 }
                             }
                         }
@@ -591,37 +693,51 @@ fn solve_system(
             match b.status {
                 Status::Static => {}
                 Status::Semikinematic => {
-                    let mut solve = true;
-                    if let Ok(collisions) = query.get::<Collisions>(manifold.body2) {
-                        for info in &collisions.y {
-                            if info.other == manifold.body1 {
-                                solve = false;
-                                break;
-                            }
-                        }
-                    }
-                    if solve {
+                    if dynamics {
                         if !manifold.contained[1].y {
                             let d = manifold.normals.y() * manifold.penetration.y();
-                            if b_maybe_step.is_some()
-                                && step.axis == StepAxis::Y
-                                && d > 0.0
-                                && d <= step.step
-                            {
-                                let (dx, vx) = b_maybe_step.unwrap();
-                                *b.position.y_mut() += d;
-                                *b.position.x_mut() += dx;
-                                *b.velocity.x_mut() = vx;
-                                b.solved.x = false;
-                                b.solved.y = true;
+                            let v = b.velocity.y();
+                            if v.signum() == d.signum() {
+                                // nothing
                             } else {
-                                let v = b.velocity.y();
-                                if v.signum() == d.signum() {
-                                    // nothing
-                                } else {
-                                    b.solved.y = true;
-                                    *b.velocity.y_mut() = 0.0;
+                                b.solved.y = true;
+                                *b.velocity.y_mut() = 0.0;
+                                *b.position.y_mut() += d;
+                            }
+                        }
+                    } else {
+                        let mut solve = true;
+                        if let Ok(collisions) = query.get::<Collisions>(manifold.body2) {
+                            for info in &collisions.y {
+                                if info.other == manifold.body1 {
+                                    solve = false;
+                                    break;
+                                }
+                            }
+                        }
+                        if solve {
+                            if !manifold.contained[1].y {
+                                let d = manifold.normals.y() * manifold.penetration.y();
+                                if b_maybe_step.is_some()
+                                    && step.axis == StepAxis::Y
+                                    && d > 0.0
+                                    && d <= step.step
+                                {
+                                    let (dx, vx) = b_maybe_step.unwrap();
                                     *b.position.y_mut() += d;
+                                    *b.position.x_mut() += dx;
+                                    *b.velocity.x_mut() = vx;
+                                    b.solved.x = false;
+                                    b.solved.y = true;
+                                } else {
+                                    let v = b.velocity.y();
+                                    if v.signum() == d.signum() {
+                                        // nothing
+                                    } else {
+                                        b.solved.y = true;
+                                        *b.velocity.y_mut() = 0.0;
+                                        *b.position.y_mut() += d;
+                                    }
                                 }
                             }
                         }
@@ -732,8 +848,10 @@ fn physics_step_system(
         body.accumulator += gravity.0;
 
         let velocity = body.velocity + body.accumulator * delta_time;
+        let velocity = velocity + body.dynamic_acc;
         body.velocity = velocity;
         body.accumulator = Vec2::zero();
+        body.dynamic_acc = Vec2::zero();
 
         if matches!(body.status, Status::Semikinematic) {
             let vel = body.velocity;
