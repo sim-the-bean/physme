@@ -974,11 +974,13 @@ fn physics_step_system(
     let delta_time = time.delta.as_secs_f32();
 
     for mut body in &mut query.iter() {
-        if !body.active || matches!(body.status, Status::Static) {
+        if !body.active {
             continue;
         }
 
-        body.accumulator += gravity.0;
+        if !matches!(body.status, Status::Static) {
+            body.accumulator += gravity.0;
+        }
 
         let velocity = body.velocity + body.accumulator * delta_time;
         let velocity = velocity + body.dynamic_acc;
