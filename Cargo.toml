@@ -7,7 +7,14 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bevy = "0.2"
 smallvec = "1.4"
 rstar = "0.8"
 hashbrown = "0.9"
+
+[dependencies.bevy]
+git = "https://github.com/bevyengine/bevy.git"
+branch = "master"
+
+[dev-dependencies.bevy_mod_picking]
+git = "https://github.com/walterpie/bevy_mod_picking.git"
+branch = "global-transform"
