@@ -35,13 +35,12 @@ impl From<f32> for Mass {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Status {
-    Dynamic,
     Static,
     Semikinematic,
 }
 
 impl Default for Status {
     fn default() -> Self {
-        Status::Dynamic
+        Status::Semikinematic
     }
 }

@@ -13,7 +13,7 @@ fn main() {
         .add_plugin(Physics2dPlugin)
         .add_resource(GlobalGravity(Vec2::new(0.0, -500.0)))
         .add_resource(GlobalFriction(0.90))
-        .add_resource(GlobalStep::y(20.0))
+        .add_resource(GlobalStep::y(15.0))
         .add_startup_system(setup.system());
     let character_system = CharacterControllerSystem::default().system(builder.resources_mut());
     builder.add_system(character_system);
@@ -27,6 +27,7 @@ fn setup(
 ) {
     let icon = asset_server.load("assets/icon.png").unwrap();
     let plat = asset_server.load("assets/platform.png").unwrap();
+    let square = asset_server.load("assets/square.png").unwrap();
     commands
         .spawn(Camera2dComponents::default())
         .spawn(SpriteComponents {
@@ -48,7 +49,7 @@ fn setup(
             ..Default::default()
         })
         .with(
-            RigidBody::new(Mass::Real(1.0))
+            RigidBody::new(Mass::Infinite)
                 .with_status(Status::Static)
                 .with_position(Vec2::new(0.0, -100.0)),
         )
@@ -60,7 +61,7 @@ fn setup(
             ..Default::default()
         })
         .with(
-            RigidBody::new(Mass::Real(1.0))
+            RigidBody::new(Mass::Infinite)
                 .with_status(Status::Static)
                 .with_position(Vec2::new(120.0, -90.0)),
         )
@@ -72,7 +73,7 @@ fn setup(
             ..Default::default()
         })
         .with(
-            RigidBody::new(Mass::Real(1.0))
+            RigidBody::new(Mass::Infinite)
                 .with_status(Status::Static)
                 .with_position(Vec2::new(360.0, -50.0)),
         )
@@ -84,7 +85,7 @@ fn setup(
             ..Default::default()
         })
         .with(
-            RigidBody::new(Mass::Real(1.0))
+            RigidBody::new(Mass::Infinite)
                 .with_status(Status::Static)
                 .with_position(Vec2::new(120.0, -10.0)),
         )
@@ -96,12 +97,24 @@ fn setup(
             ..Default::default()
         })
         .with(
-            RigidBody::new(Mass::Real(1.0))
+            RigidBody::new(Mass::Infinite)
                 .with_status(Status::Static)
                 .with_position(Vec2::new(-120.0, 20.0)),
         )
         .with_children(|parent| {
             parent.spawn((Shape::from(Size::new(120.0, 20.0)),));
+        })
+        .spawn(SpriteComponents {
+            material: materials.add(square.into()),
+            ..Default::default()
+        })
+        .with(
+            RigidBody::new(Mass::Real(1.0))
+                .with_status(Status::Semikinematic)
+                .with_position(Vec2::new(-30.0, 0.0)),
+        )
+        .with_children(|parent| {
+            parent.spawn((Shape::from(Size::new(20.0, 20.0)),));
         });
 }
 

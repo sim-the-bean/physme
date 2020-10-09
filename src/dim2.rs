@@ -122,14 +122,20 @@ impl GlobalStep {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Aabb {
+    status: Status,
     body: Entity,
     min: Vec2,
     max: Vec2,
 }
 
 impl Aabb {
-    fn new(body: Entity, min: Vec2, max: Vec2) -> Self {
-        Self { body, min, max }
+    fn new(status: Status, body: Entity, min: Vec2, max: Vec2) -> Self {
+        Self {
+            status,
+            body,
+            min,
+            max,
+        }
     }
 }
 
@@ -138,6 +144,10 @@ impl Collider for Aabb {
 
     fn bounding_box(&self) -> BoundingBox<Self::Point> {
         BoundingBox::new(self.min, self.max)
+    }
+
+    fn status(&self) -> Status {
+        self.status
     }
 }
 
@@ -228,7 +238,7 @@ impl RigidBody {
             prev_velocity: Vec2::zero(),
             terminal: Vec2::new(f32::INFINITY, f32::INFINITY),
             accumulator: Vec2::zero(),
-            status: Status::Dynamic,
+            status: Status::Semikinematic,
             inv_mass: mass.inverse(),
             restitution: 0.5,
             active: true,
@@ -339,7 +349,7 @@ pub fn broad_phase_system(
                 let max_y = min.y().max(max.y());
                 let min = Vec2::new(min_x, min_y);
                 let max = Vec2::new(max_x, max_y);
-                let collider = Aabb::new(entity, min, max);
+                let collider = Aabb::new(body.status, entity, min, max);
                 colliders.push(collider);
             }
         }
@@ -388,19 +398,19 @@ fn narrow_phase_system(
 
         if x_overlap > 0.0 {
             let a_x_contained =
-                collider1.min.x() > collider2.min.x() && collider1.max.x() < collider2.max.x();
+                collider1.min.x() >= collider2.min.x() && collider1.max.x() <= collider2.max.x();
             let b_x_contained =
-                collider2.min.x() > collider1.min.x() && collider2.max.x() < collider1.max.x();
+                collider2.min.x() >= collider1.min.x() && collider2.max.x() <= collider1.max.x();
 
             let a_extent = (collider1.max.y() - collider1.min.y()) * 0.5;
             let b_extent = (collider2.max.y() - collider2.min.y()) * 0.5;
             let y_overlap = a_extent + b_extent - d.y().abs();
 
             if y_overlap > 0.0 {
-                let a_y_contained =
-                    collider1.min.y() > collider2.min.y() && collider1.max.y() < collider2.max.y();
-                let b_y_contained =
-                    collider2.min.y() > collider1.min.y() && collider2.max.y() < collider1.max.y();
+                let a_y_contained = collider1.min.y() >= collider2.min.y()
+                    && collider1.max.y() <= collider2.max.y();
+                let b_y_contained = collider2.min.y() >= collider1.min.y()
+                    && collider2.max.y() <= collider1.max.y();
 
                 let n_x = if d.x() < 0.0 { -1.0 } else { 1.0 };
                 let n_y = if d.y() < 0.0 { -1.0 } else { 1.0 };
@@ -459,36 +469,16 @@ fn solve_system(
             continue;
         }
 
+        mem::drop(a);
+        mem::drop(b);
+
         let mut a_maybe_step = None;
         let mut b_maybe_step = None;
 
         {
-            let rv = b.velocity.x() - a.velocity.x();
-
-            let restitution = a.restitution.min(b.restitution);
-
-            let mut j = -(1.0 + restitution) * rv;
-            j /= a.inv_mass + b.inv_mass;
-
-            let impulse = j * manifold.normals.x();
-            let percent = 0.2;
-            let slop = 0.01;
-            let correction = manifold.normals.x() * (manifold.penetration.x() - slop).max(0.0)
-                / (a.inv_mass + b.inv_mass)
-                * percent;
-            mem::drop(a);
-            mem::drop(b);
-
             let mut a = query.get_mut::<RigidBody>(manifold.body1).unwrap();
             match a.status {
                 Status::Static => {}
-                Status::Dynamic => {
-                    let inv_mass = a.inv_mass;
-                    if !manifold.contained[0].x {
-                        *a.velocity.x_mut() -= impulse * inv_mass;
-                        *a.position.x_mut() -= inv_mass * correction;
-                    }
-                }
                 Status::Semikinematic => {
                     let mut solve = true;
                     if let Ok(collisions) = query.get::<Collisions>(manifold.body1) {
@@ -499,26 +489,19 @@ fn solve_system(
                             }
                         }
                     }
-                    if solve && !a.solved.x {
+                    if solve {
                         if !manifold.contained[0].x {
                             let d = -manifold.normals.x() * manifold.penetration.x();
                             let v = a.velocity.x() * delta_time;
                             if v.signum() == d.signum() {
                                 // nothing
-                            } else if d.abs() < v.abs() {
+                            } else {
                                 if step.axis == StepAxis::Y {
                                     a_maybe_step = Some((-d, a.velocity.x()));
                                 }
                                 a.solved.x = true;
                                 *a.velocity.x_mut() = 0.0;
                                 *a.position.x_mut() += d;
-                            } else {
-                                if step.axis == StepAxis::Y {
-                                    a_maybe_step = Some((v, a.velocity.x()));
-                                }
-                                a.solved.x = true;
-                                *a.velocity.x_mut() = 0.0;
-                                *a.position.x_mut() -= v;
                             }
                         }
                     }
@@ -529,13 +512,6 @@ fn solve_system(
             let mut b = query.get_mut::<RigidBody>(manifold.body2).unwrap();
             match b.status {
                 Status::Static => {}
-                Status::Dynamic => {
-                    let inv_mass = b.inv_mass;
-                    if !manifold.contained[1].x {
-                        *b.velocity.x_mut() += impulse * inv_mass;
-                        *b.position.x_mut() += inv_mass * correction;
-                    }
-                }
                 Status::Semikinematic => {
                     let mut solve = true;
                     if let Ok(collisions) = query.get::<Collisions>(manifold.body2) {
@@ -546,26 +522,19 @@ fn solve_system(
                             }
                         }
                     }
-                    if solve && !b.solved.x {
+                    if solve {
                         if !manifold.contained[1].x {
                             let d = manifold.normals.x() * manifold.penetration.x();
                             let v = b.velocity.x() * delta_time;
                             if v.signum() == d.signum() {
                                 // nothing
-                            } else if d.abs() < v.abs() {
+                            } else {
                                 if step.axis == StepAxis::Y {
                                     b_maybe_step = Some((-d, b.velocity.x()));
                                 }
                                 b.solved.x = true;
                                 *b.velocity.x_mut() = 0.0;
                                 *b.position.x_mut() += d;
-                            } else {
-                                if step.axis == StepAxis::Y {
-                                    b_maybe_step = Some((v, b.velocity.x()));
-                                }
-                                b.solved.x = true;
-                                *b.velocity.x_mut() = 0.0;
-                                *b.position.x_mut() -= v;
                             }
                         }
                     }
@@ -574,36 +543,10 @@ fn solve_system(
             mem::drop(b);
         }
 
-        let a = query.get::<RigidBody>(manifold.body1).unwrap();
-        let b = query.get::<RigidBody>(manifold.body2).unwrap();
-
         {
-            let rv = b.velocity.y() - a.velocity.y();
-
-            let restitution = a.restitution.min(b.restitution);
-
-            let mut j = -(1.0 + restitution) * rv;
-            j /= a.inv_mass + b.inv_mass;
-
-            let impulse = j * manifold.normals.y();
-            let percent = 0.2;
-            let slop = 0.01;
-            let correction = manifold.normals.y() * (manifold.penetration.y() - slop).max(0.0)
-                / (a.inv_mass + b.inv_mass)
-                * percent;
-            mem::drop(a);
-            mem::drop(b);
-
             let mut a = query.get_mut::<RigidBody>(manifold.body1).unwrap();
             match a.status {
                 Status::Static => {}
-                Status::Dynamic => {
-                    let inv_mass = a.inv_mass;
-                    if !manifold.contained[0].y {
-                        *a.velocity.y_mut() -= impulse * inv_mass;
-                        *a.position.y_mut() -= inv_mass * correction;
-                    }
-                }
                 Status::Semikinematic => {
                     let mut solve = true;
                     if let Ok(collisions) = query.get::<Collisions>(manifold.body1) {
@@ -614,10 +557,13 @@ fn solve_system(
                             }
                         }
                     }
-                    if solve && !a.solved.y {
+                    if solve {
                         if !manifold.contained[0].y {
                             let d = -manifold.normals.y() * manifold.penetration.y();
-                            if a_maybe_step.is_some() && step.axis == StepAxis::Y && d <= step.step
+                            if a_maybe_step.is_some()
+                                && step.axis == StepAxis::Y
+                                && d > 0.0
+                                && dbg!(d) <= dbg!(step.step)
                             {
                                 let (dx, vx) = a_maybe_step.unwrap();
                                 *a.position.y_mut() += d;
@@ -644,13 +590,6 @@ fn solve_system(
             let mut b = query.get_mut::<RigidBody>(manifold.body2).unwrap();
             match b.status {
                 Status::Static => {}
-                Status::Dynamic => {
-                    let inv_mass = b.inv_mass;
-                    if !manifold.contained[1].y {
-                        *b.velocity.y_mut() += impulse * inv_mass;
-                        *b.position.y_mut() += inv_mass * correction;
-                    }
-                }
                 Status::Semikinematic => {
                     let mut solve = true;
                     if let Ok(collisions) = query.get::<Collisions>(manifold.body2) {
@@ -661,10 +600,13 @@ fn solve_system(
                             }
                         }
                     }
-                    if solve && !b.solved.y {
+                    if solve {
                         if !manifold.contained[1].y {
                             let d = manifold.normals.y() * manifold.penetration.y();
-                            if b_maybe_step.is_some() && step.axis == StepAxis::Y && d <= step.step
+                            if b_maybe_step.is_some()
+                                && step.axis == StepAxis::Y
+                                && d > 0.0
+                                && d <= step.step
                             {
                                 let (dx, vx) = b_maybe_step.unwrap();
                                 *b.position.y_mut() += d;
@@ -822,7 +764,6 @@ fn physics_step_system(
                     *body.velocity.y_mut() *= friction.0
                 }
             }
-            Status::Dynamic => body.velocity *= friction.0,
             Status::Static => {}
         }
         body.prev_velocity = body.velocity;
@@ -1009,8 +950,7 @@ pub fn debug_render_system(
         } else {
             match body.status {
                 Status::Static => Color::rgb(0.0, 1.0, 0.0),
-                Status::Dynamic => Color::rgb(1.0, 0.0, 0.0),
-                Status::Semikinematic => Color::rgb(0.0, 0.0, 1.0),
+                Status::Semikinematic => Color::rgb(1.0, 0.0, 0.0),
             }
         };
         let mut material = None;

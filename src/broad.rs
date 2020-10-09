@@ -3,6 +3,7 @@ use std::ops::{Deref, DerefMut};
 use bevy::math::*;
 use rstar::{Point, RTree, RTreeObject, AABB};
 
+use crate::common::Status;
 use crate::dim2;
 
 mod private {
@@ -110,6 +111,7 @@ where
     type Point: PhysPoint;
 
     fn bounding_box(&self) -> BoundingBox<Self::Point>;
+    fn status(&self) -> Status;
 }
 
 impl RTreeObject for dim2::Aabb {
@@ -142,10 +144,24 @@ where
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (&T, &T)> + '_ {
-        self.rstar.iter().flat_map(move |collider1| {
-            self.rstar
-                .locate_in_envelope_intersecting(&collider1.envelope())
-                .map(move |collider2| (collider1, collider2))
-        })
+        let statics = self
+            .rstar
+            .iter()
+            .filter(|collider| collider.status() == Status::Static);
+        let semiks = self
+            .rstar
+            .iter()
+            .filter(|collider| collider.status() == Status::Semikinematic);
+        statics
+            .flat_map(move |collider1| {
+                self.rstar
+                    .locate_in_envelope_intersecting(&collider1.envelope())
+                    .map(move |collider2| (collider1, collider2))
+            })
+            .chain(semiks.flat_map(move |collider1| {
+                self.rstar
+                    .locate_in_envelope_intersecting(&collider1.envelope())
+                    .map(move |collider2| (collider1, collider2))
+            }))
     }
 }
