@@ -5,6 +5,7 @@ use rstar::{Point, RTree, RTreeObject, AABB};
 
 use crate::common::Status;
 use crate::dim2;
+use crate::dim3;
 
 mod private {
     use bevy::math::{Vec2, Vec3};
@@ -86,6 +87,36 @@ impl Point for NPoint<Vec2> {
     }
 }
 
+#[doc(hidden)]
+impl Point for NPoint<Vec3> {
+    type Scalar = f32;
+    const DIMENSIONS: usize = 3;
+
+    fn generate(generator: impl Fn(usize) -> Self::Scalar) -> Self {
+        Self::from(Vec3::new(generator(0), generator(1), generator(2)))
+    }
+
+    fn nth(&self, index: usize) -> Self::Scalar {
+        match index {
+            0 => self.0.x(),
+            1 => self.0.y(),
+            2 => self.0.z(),
+            // unreachable according to the rstart 0.8 docs
+            _ => unreachable!(),
+        }
+    }
+
+    fn nth_mut(&mut self, index: usize) -> &mut Self::Scalar {
+        match index {
+            0 => self.0.x_mut(),
+            1 => self.0.y_mut(),
+            2 => self.0.z_mut(),
+            // unreachable according to the rstart 0.8 docs
+            _ => unreachable!(),
+        }
+    }
+}
+
 pub struct BoundingBox<P: PhysPoint>
 where
     NPoint<P>: Point,
@@ -116,6 +147,14 @@ where
 
 impl RTreeObject for dim2::Aabb {
     type Envelope = AABB<NPoint<Vec2>>;
+
+    fn envelope(&self) -> Self::Envelope {
+        self.bounding_box().aabb
+    }
+}
+
+impl RTreeObject for dim3::Aabb {
+    type Envelope = AABB<NPoint<Vec3>>;
 
     fn envelope(&self) -> Self::Envelope {
         self.bounding_box().aabb

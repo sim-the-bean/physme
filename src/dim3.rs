@@ -3,48 +3,28 @@ use std::mem;
 
 use bevy::math::*;
 use bevy::prelude::*;
-use bevy::render::{
-    mesh::*,
-    pipeline::{
-        BlendDescriptor, BlendFactor, BlendOperation, ColorStateDescriptor, ColorWrite,
-        CompareFunction, CullMode, DepthStencilStateDescriptor, DynamicBinding, FrontFace,
-        PipelineDescriptor, PipelineSpecialization, PrimitiveTopology,
-        RasterizationStateDescriptor, RenderPipeline, RenderPipelines, StencilStateDescriptor,
-        StencilStateFaceDescriptor,
-    },
-    render_graph::{
-        base::{self, MainPass},
-        AssetRenderResourcesNode, RenderGraph, RenderResourcesNode,
-    },
-    renderer::RenderResources,
-    shader::{asset_shader_defs_system, Shader, ShaderDefs, ShaderStage, ShaderStages},
-    texture::TextureFormat,
-};
 use hashbrown::{HashMap, HashSet};
 use smallvec::SmallVec;
 
 use crate::broad::{self, BoundingBox, Collider};
 use crate::common::*;
 
-pub struct Physics2dPlugin;
+pub struct Physics3dPlugin;
 
 pub mod stage {
     pub use bevy::prelude::stage::*;
 
-    pub const PHYSICS_STEP: &str = "physics_step";
-    pub const BROAD_PHASE: &str = "broad_phase";
-    pub const NARROW_PHASE: &str = "narrow_phase";
-    pub const PHYSICS_SOLVE: &str = "physics_solve";
-    pub const SYNC_TRANSFORM: &str = "sync_transform";
+    pub const PHYSICS_STEP: &str = "physics_step_3d";
+    pub const BROAD_PHASE: &str = "broad_phase_3d";
+    pub const NARROW_PHASE: &str = "narrow_phase_3d";
+    pub const PHYSICS_SOLVE: &str = "physics_solve_3d";
+    pub const SYNC_TRANSFORM: &str = "sync_transform_3d";
 }
 
-impl Plugin for Physics2dPlugin {
+impl Plugin for Physics3dPlugin {
     fn build(&self, app: &mut AppBuilder) {
         app.add_resource(GlobalFriction::default())
             .add_resource(GlobalGravity::default())
-            .add_resource(TranslationMode::default())
-            .add_resource(RotationMode::default())
-            .add_resource(StepAxis::default())
             .add_event::<Manifold>()
             .add_stage_before(stage::UPDATE, stage::PHYSICS_STEP)
             .add_stage_after(stage::PHYSICS_STEP, stage::BROAD_PHASE)
@@ -61,75 +41,24 @@ impl Plugin for Physics2dPlugin {
     }
 }
 
-pub struct DebugRenderPlugin;
-
-impl Plugin for DebugRenderPlugin {
-    fn build(&self, app: &mut AppBuilder) {
-        app.add_asset::<DebugMaterial>()
-            .add_startup_system(init_debug_system.system())
-            .add_system(debug_render_system.system())
-            .add_system_to_stage(
-                stage::POST_UPDATE,
-                asset_shader_defs_system::<DebugMaterial>.system(),
-            );
-
-        let resources = app.resources();
-        let mut render_graph = resources.get_mut::<RenderGraph>().unwrap();
-        render_graph.add_debug_graph(resources);
-    }
-}
-
 pub type BroadPhase = broad::BroadPhase<Aabb>;
 
 #[derive(Default, Debug, Clone, Copy, PartialEq)]
-pub struct GlobalGravity(pub Vec2);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StepAxis {
-    X,
-    Y,
-}
-
-impl Default for StepAxis {
-    fn default() -> Self {
-        Self::Y
-    }
-}
+pub struct GlobalGravity(pub Vec3);
 
 #[derive(Default, Debug, Clone, Copy, PartialEq)]
-pub struct GlobalStep {
-    pub axis: StepAxis,
-    pub step: f32,
-}
-
-impl GlobalStep {
-    pub fn y(step: f32) -> Self {
-        Self {
-            axis: StepAxis::Y,
-            step,
-        }
-    }
-}
-
-impl GlobalStep {
-    pub fn x(step: f32) -> Self {
-        Self {
-            axis: StepAxis::X,
-            step,
-        }
-    }
-}
+pub struct GlobalStep(pub f32);
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Aabb {
     status: Status,
     body: Entity,
-    min: Vec2,
-    max: Vec2,
+    min: Vec3,
+    max: Vec3,
 }
 
 impl Aabb {
-    fn new(status: Status, body: Entity, min: Vec2, max: Vec2) -> Self {
+    fn new(status: Status, body: Entity, min: Vec3, max: Vec3) -> Self {
         Self {
             status,
             body,
@@ -140,7 +69,7 @@ impl Aabb {
 }
 
 impl Collider for Aabb {
-    type Point = Vec2;
+    type Point = Vec3;
 
     fn bounding_box(&self) -> BoundingBox<Self::Point> {
         BoundingBox::new(self.min, self.max)
@@ -152,28 +81,46 @@ impl Collider for Aabb {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Size3 {
+    pub width: f32,
+    pub height: f32,
+    pub depth: f32,
+}
+
+impl Size3 {
+    pub fn new(width: f32, height: f32, depth: f32) -> Self {
+        Self {
+            width,
+            height,
+            depth,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Shape {
-    offset: Vec2,
-    size: Size,
+    offset: Vec3,
+    size: Size3,
 }
 
 impl Shape {
-    pub fn new(size: Size) -> Self {
-        let offset = Vec2::zero();
+    pub fn new(size: Size3) -> Self {
+        let offset = Vec3::zero();
         Self { offset, size }
     }
 
-    pub fn with_offset(mut self, offset: Vec2) -> Self {
+    pub fn with_offset(mut self, offset: Vec3) -> Self {
         self.offset = offset;
         self
     }
 }
 
-impl From<Size> for Shape {
-    fn from(size: Size) -> Self {
+impl From<Size3> for Shape {
+    fn from(size: Size3) -> Self {
         let x = size.width * 0.5;
         let y = size.height * 0.5;
-        let offset = Vec2::new(-x, -y);
+        let z = size.depth * 0.5;
+        let offset = Vec3::new(-x, -y, -z);
         Self { offset, size }
     }
 }
@@ -182,8 +129,8 @@ impl From<Size> for Shape {
 pub struct Joint {
     body1: Entity,
     body2: Entity,
-    offset: Vec2,
-    angle: f32,
+    offset: Vec3,
+    angle: Quat,
 }
 
 impl Joint {
@@ -191,17 +138,17 @@ impl Joint {
         Self {
             body1,
             body2,
-            offset: Vec2::zero(),
-            angle: 0.0,
+            offset: Vec3::zero(),
+            angle: Quat::identity(),
         }
     }
 
-    pub fn with_offset(mut self, offset: Vec2) -> Self {
+    pub fn with_offset(mut self, offset: Vec3) -> Self {
         self.offset = offset;
         self
     }
 
-    pub fn with_angle(mut self, angle: f32) -> Self {
+    pub fn with_angle(mut self, angle: Quat) -> Self {
         self.angle = angle;
         self
     }
@@ -211,17 +158,18 @@ impl Joint {
 pub struct Solved {
     x: bool,
     y: bool,
+    z: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct RigidBody {
-    pub position: Vec2,
-    pub rotation: f32,
-    pub velocity: Vec2,
-    prev_velocity: Vec2,
-    pub terminal: Vec2,
-    accumulator: Vec2,
-    dynamic_acc: Vec2,
+    pub position: Vec3,
+    pub rotation: Quat,
+    pub velocity: Vec3,
+    prev_velocity: Vec3,
+    pub terminal: Vec3,
+    accumulator: Vec3,
+    dynamic_acc: Vec3,
     pub status: Status,
     mass: f32,
     inv_mass: f32,
@@ -234,13 +182,13 @@ pub struct RigidBody {
 impl RigidBody {
     pub fn new(mass: Mass) -> Self {
         Self {
-            position: Vec2::zero(),
-            rotation: 0.0,
-            velocity: Vec2::zero(),
-            prev_velocity: Vec2::zero(),
-            terminal: Vec2::new(f32::INFINITY, f32::INFINITY),
-            accumulator: Vec2::zero(),
-            dynamic_acc: Vec2::zero(),
+            position: Vec3::zero(),
+            rotation: Quat::identity(),
+            velocity: Vec3::zero(),
+            prev_velocity: Vec3::zero(),
+            terminal: Vec3::new(f32::INFINITY, f32::INFINITY, f32::INFINITY),
+            accumulator: Vec3::zero(),
+            dynamic_acc: Vec3::zero(),
             status: Status::Semikinematic,
             mass: mass.scalar(),
             inv_mass: mass.inverse(),
@@ -251,27 +199,27 @@ impl RigidBody {
         }
     }
 
-    pub fn with_position(mut self, position: Vec2) -> Self {
+    pub fn with_position(mut self, position: Vec3) -> Self {
         self.position = position;
         self
     }
 
-    pub fn with_rotation(mut self, rotation: f32) -> Self {
+    pub fn with_rotation(mut self, rotation: Quat) -> Self {
         self.rotation = rotation;
         self
     }
 
-    pub fn with_velocity(mut self, velocity: Vec2) -> Self {
+    pub fn with_velocity(mut self, velocity: Vec3) -> Self {
         self.velocity = velocity;
         self
     }
 
-    pub fn with_terminal(mut self, terminal: Vec2) -> Self {
+    pub fn with_terminal(mut self, terminal: Vec3) -> Self {
         self.terminal = terminal;
         self
     }
 
-    pub fn with_acceleration(mut self, acceleration: Vec2) -> Self {
+    pub fn with_acceleration(mut self, acceleration: Vec3) -> Self {
         self.accumulator = acceleration;
         self
     }
@@ -296,11 +244,11 @@ impl RigidBody {
         self
     }
 
-    pub fn apply_impulse(&mut self, impulse: Vec2) {
+    pub fn apply_impulse(&mut self, impulse: Vec3) {
         self.velocity += impulse * self.inv_mass;
     }
 
-    pub fn apply_force(&mut self, force: Vec2) {
+    pub fn apply_force(&mut self, force: Vec3) {
         self.accumulator += force * self.inv_mass;
     }
 }
@@ -308,29 +256,31 @@ impl RigidBody {
 #[derive(Debug, Clone, Copy)]
 pub struct CollisionInfo {
     pub other: Entity,
-    pub penetration: Vec2,
-    pub normals: Vec2,
+    pub penetration: Vec3,
+    pub normals: Vec3,
 }
 
 #[derive(Default, Debug, Clone)]
 pub struct Collisions {
     pub x: SmallVec<[CollisionInfo; 16]>,
     pub y: SmallVec<[CollisionInfo; 16]>,
+    pub z: SmallVec<[CollisionInfo; 16]>,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct Contained {
     pub x: bool,
     pub y: bool,
+    pub z: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct Manifold {
     pub body1: Entity,
     pub body2: Entity,
-    pub penetration: Vec2,
-    pub normals: Vec2,
-    pub pnormal: Vec2,
+    pub penetration: Vec3,
+    pub normals: Vec3,
+    pub pnormal: Vec3,
     pub contained: [Contained; 2],
 }
 
@@ -344,16 +294,19 @@ pub fn broad_phase_system(
         for &e in children.iter() {
             if let Ok(shape) = query2.get::<Shape>(e) {
                 let mut min = shape.offset;
-                let mut max = shape.offset + Vec2::new(shape.size.width, shape.size.height);
-                let rotation = Mat2::from_angle(body.rotation);
+                let mut max =
+                    shape.offset + Vec3::new(shape.size.width, shape.size.height, shape.size.depth);
+                let rotation = body.rotation;
                 min = body.position + rotation * min;
                 max = body.position + rotation * max;
                 let min_x = min.x().min(max.x());
                 let min_y = min.y().min(max.y());
+                let min_z = min.z().min(max.z());
                 let max_x = min.x().max(max.x());
                 let max_y = min.y().max(max.y());
-                let min = Vec2::new(min_x, min_y);
-                let max = Vec2::new(max_x, max_y);
+                let max_z = min.z().max(max.z());
+                let min = Vec3::new(min_x, min_y, min_z);
+                let max = Vec3::new(max_x, max_y, max_z);
                 let collider = Aabb::new(body.status, entity, min, max);
                 colliders.push(collider);
             }
@@ -417,41 +370,61 @@ fn narrow_phase_system(
                 let b_y_contained = collider2.min.y() >= collider1.min.y()
                     && collider2.max.y() <= collider1.max.y();
 
-                let pn_x1 = (collider2.max.x() - collider1.min.x()).abs();
-                let pn_x2 = (collider2.min.x() - collider1.max.x()).abs();
-                let pn_y1 = (collider2.max.y() - collider1.min.y()).abs();
-                let pn_y2 = (collider2.min.y() - collider1.max.y()).abs();
-                let min = pn_x1.min(pn_x2).min(pn_y1).min(pn_y2);
-                let pnormal = if min == pn_x1 {
-                    Vec2::new(1.0, 0.0)
-                } else if min == pn_x2 {
-                    Vec2::new(-1.0, 0.0)
-                } else if min == pn_y1 {
-                    Vec2::new(0.0, 1.0)
-                } else {
-                    Vec2::new(0.0, -1.0)
-                };
+                let a_extent = (collider1.max.z() - collider1.min.z()) * 0.5;
+                let b_extent = (collider2.max.z() - collider2.min.z()) * 0.5;
+                let z_overlap = a_extent + b_extent - d.z().abs();
 
-                let n_x = if d.x() < 0.0 { -1.0 } else { 1.0 };
-                let n_y = if d.y() < 0.0 { -1.0 } else { 1.0 };
-                let manifold = Manifold {
-                    body1: collider1.body,
-                    body2: collider2.body,
-                    penetration: Vec2::new(x_overlap, y_overlap),
-                    normals: Vec2::new(n_x, n_y),
-                    pnormal,
-                    contained: [
-                        Contained {
-                            x: a_x_contained,
-                            y: a_y_contained,
-                        },
-                        Contained {
-                            x: b_x_contained,
-                            y: b_y_contained,
-                        },
-                    ],
-                };
-                manifolds.send(manifold);
+                if z_overlap > 0.0 {
+                    let a_z_contained = collider1.min.z() >= collider2.min.z()
+                        && collider1.max.z() <= collider2.max.z();
+                    let b_z_contained = collider2.min.z() >= collider1.min.z()
+                        && collider2.max.z() <= collider1.max.z();
+
+                    let pn_x1 = (collider2.max.x() - collider1.min.x()).abs();
+                    let pn_x2 = (collider2.min.x() - collider1.max.x()).abs();
+                    let pn_y1 = (collider2.max.y() - collider1.min.y()).abs();
+                    let pn_y2 = (collider2.min.y() - collider1.max.y()).abs();
+                    let pn_z1 = (collider2.max.z() - collider1.min.z()).abs();
+                    let pn_z2 = (collider2.min.z() - collider1.max.z()).abs();
+                    let min = pn_x1.min(pn_x2).min(pn_y1).min(pn_y2).min(pn_z1).min(pn_z2);
+                    let pnormal = if min == pn_x1 {
+                        Vec3::new(1.0, 0.0, 0.0)
+                    } else if min == pn_x2 {
+                        Vec3::new(-1.0, 0.0, 0.0)
+                    } else if min == pn_y1 {
+                        Vec3::new(0.0, 1.0, 0.0)
+                    } else if min == pn_y2 {
+                        Vec3::new(0.0, -1.0, 0.0)
+                    } else if min == pn_z1 {
+                        Vec3::new(0.0, 0.0, 1.0)
+                    } else {
+                        Vec3::new(0.0, 0.0, -1.0)
+                    };
+
+                    let n_x = if d.x() < 0.0 { -1.0 } else { 1.0 };
+                    let n_y = if d.y() < 0.0 { -1.0 } else { 1.0 };
+                    let n_z = if d.z() < 0.0 { -1.0 } else { 1.0 };
+                    let manifold = Manifold {
+                        body1: collider1.body,
+                        body2: collider2.body,
+                        penetration: Vec3::new(x_overlap, y_overlap, z_overlap),
+                        normals: Vec3::new(n_x, n_y, n_z),
+                        pnormal,
+                        contained: [
+                            Contained {
+                                x: a_x_contained,
+                                y: a_y_contained,
+                                z: a_z_contained,
+                            },
+                            Contained {
+                                x: b_x_contained,
+                                y: b_y_contained,
+                                z: b_z_contained,
+                            },
+                        ],
+                    };
+                    manifolds.send(manifold);
+                }
             }
         }
     }
@@ -555,9 +528,10 @@ fn solve_system(
                                 if v.signum() == d.signum() {
                                     // nothing
                                 } else {
-                                    if step.axis == StepAxis::Y {
-                                        a_maybe_step = Some((-d, a.velocity.x()));
-                                    }
+                                    a_maybe_step = Some((
+                                        Vec3::new(-d, 0.0, 0.0),
+                                        Vec3::new(a.velocity.x(), 0.0, 0.0),
+                                    ));
                                     a.solved.x = true;
                                     *a.velocity.x_mut() = 0.0;
                                     *a.position.x_mut() += d;
@@ -604,9 +578,10 @@ fn solve_system(
                                 if v.signum() == d.signum() {
                                     // nothing
                                 } else {
-                                    if step.axis == StepAxis::Y {
-                                        b_maybe_step = Some((-d, b.velocity.x()));
-                                    }
+                                    b_maybe_step = Some((
+                                        Vec3::new(-d, 0.0, 0.0),
+                                        Vec3::new(b.velocity.x(), 0.0, 0.0),
+                                    ));
                                     b.solved.x = true;
                                     *b.velocity.x_mut() = 0.0;
                                     *b.position.x_mut() += d;
@@ -625,7 +600,142 @@ fn solve_system(
         let a = query.get::<RigidBody>(manifold.body1).unwrap();
         let b = query.get::<RigidBody>(manifold.body2).unwrap();
 
-        if !pushed_x {
+        let dont_z = a.status == Status::Semikinematic
+            && b.status == Status::Semikinematic
+            && manifold.pnormal.z() == 0.0;
+        let mut pushed_z = false;
+
+        if !dont_z {
+            let dynamics = if a.status == Status::Semikinematic
+                && b.status == Status::Semikinematic
+                && manifold.pnormal.z() != 0.0
+            {
+                let sum_recip = (a.mass + b.mass).recip();
+                let br = b.velocity.z() * b.mass;
+                let ar = a.velocity.z() * a.mass;
+                let rv = br * sum_recip - ar * sum_recip;
+
+                let impulse = -rv;
+
+                let a = a.velocity.z() - impulse;
+                let b = b.velocity.z() + impulse;
+                Some((a, b))
+            } else {
+                None
+            };
+            mem::drop(a);
+            mem::drop(b);
+
+            pushed_z = dynamics.is_some();
+
+            let mut a = query.get_mut::<RigidBody>(manifold.body1).unwrap();
+            match a.status {
+                Status::Static => {}
+                Status::Semikinematic => {
+                    if let Some((impulse, _)) = dynamics {
+                        *a.dynamic_acc.z_mut() += impulse;
+
+                        if !manifold.contained[0].z {
+                            let d = -manifold.normals.z() * manifold.penetration.z();
+                            let v = a.velocity.z() * delta_time;
+                            if v.signum() == d.signum() {
+                                // nothing
+                            } else {
+                                a.solved.z = true;
+                                *a.velocity.z_mut() = 0.0;
+                                *a.position.z_mut() += d;
+                            }
+                        }
+                    } else {
+                        let mut solve = true;
+                        if let Ok(collisions) = query.get::<Collisions>(manifold.body1) {
+                            for info in &collisions.z {
+                                if info.other == manifold.body2 {
+                                    solve = false;
+                                    break;
+                                }
+                            }
+                        }
+                        if solve {
+                            if !manifold.contained[0].z {
+                                let d = -manifold.normals.z() * manifold.penetration.z();
+                                let v = a.velocity.z() * delta_time;
+                                if v.signum() == d.signum() {
+                                    // nothing
+                                } else {
+                                    a_maybe_step = Some((
+                                        Vec3::new(0.0, 0.0, -d),
+                                        Vec3::new(0.0, 0.0, a.velocity.z()),
+                                    ));
+                                    a.solved.z = true;
+                                    *a.velocity.z_mut() = 0.0;
+                                    *a.position.z_mut() += d;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            mem::drop(a);
+
+            let mut b = query.get_mut::<RigidBody>(manifold.body2).unwrap();
+            match b.status {
+                Status::Static => {}
+                Status::Semikinematic => {
+                    if let Some((_, impulse)) = dynamics {
+                        *b.dynamic_acc.z_mut() += impulse;
+
+                        if !manifold.contained[1].z {
+                            let d = manifold.normals.z() * manifold.penetration.z();
+                            let v = b.velocity.z() * delta_time;
+                            if v.signum() == d.signum() {
+                                // nothing
+                            } else {
+                                b.solved.z = true;
+                                *b.velocity.z_mut() = 0.0;
+                                *b.position.z_mut() += d;
+                            }
+                        }
+                    } else {
+                        let mut solve = true;
+                        if let Ok(collisions) = query.get::<Collisions>(manifold.body2) {
+                            for info in &collisions.z {
+                                if info.other == manifold.body1 {
+                                    solve = false;
+                                    break;
+                                }
+                            }
+                        }
+                        if solve {
+                            if !manifold.contained[1].z {
+                                let d = manifold.normals.z() * manifold.penetration.z();
+                                let v = b.velocity.z() * delta_time;
+                                if v.signum() == d.signum() {
+                                    // nothing
+                                } else {
+                                    b_maybe_step = Some((
+                                        Vec3::new(0.0, 0.0, -d),
+                                        Vec3::new(0.0, 0.0, b.velocity.z()),
+                                    ));
+                                    b.solved.z = true;
+                                    *b.velocity.z_mut() = 0.0;
+                                    *b.position.z_mut() += d;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            mem::drop(b);
+        } else {
+            mem::drop(a);
+            mem::drop(b);
+        }
+
+        let a = query.get::<RigidBody>(manifold.body1).unwrap();
+        let b = query.get::<RigidBody>(manifold.body2).unwrap();
+
+        if !pushed_x && !pushed_z {
             let dynamics = a.status == Status::Semikinematic
                 && b.status == Status::Semikinematic
                 && manifold.pnormal.y() != 0.0;
@@ -661,17 +771,14 @@ fn solve_system(
                         if solve {
                             if !manifold.contained[0].y {
                                 let d = -manifold.normals.y() * manifold.penetration.y();
-                                if a_maybe_step.is_some()
-                                    && step.axis == StepAxis::Y
-                                    && d > 0.0
-                                    && d <= step.step
-                                {
-                                    let (dx, vx) = a_maybe_step.unwrap();
+                                if a_maybe_step.is_some() && d > 0.0 && d <= step.0 {
+                                    let (dp, dv) = a_maybe_step.unwrap();
                                     *a.position.y_mut() += d;
-                                    *a.position.x_mut() += dx;
-                                    *a.velocity.x_mut() = vx;
+                                    a.position += dp;
+                                    a.velocity = dv;
                                     a.solved.x = false;
                                     a.solved.y = true;
+                                    a.solved.z = false;
                                 } else {
                                     let v = a.velocity.y();
                                     if v.signum() == d.signum() {
@@ -718,17 +825,14 @@ fn solve_system(
                         if solve {
                             if !manifold.contained[1].y {
                                 let d = manifold.normals.y() * manifold.penetration.y();
-                                if b_maybe_step.is_some()
-                                    && step.axis == StepAxis::Y
-                                    && d > 0.0
-                                    && d <= step.step
-                                {
-                                    let (dx, vx) = b_maybe_step.unwrap();
+                                if b_maybe_step.is_some() && d > 0.0 && d <= step.0 {
+                                    let (dp, dv) = b_maybe_step.unwrap();
                                     *b.position.y_mut() += d;
-                                    *b.position.x_mut() += dx;
-                                    *b.velocity.x_mut() = vx;
+                                    b.position += dp;
+                                    b.velocity = dv;
                                     b.solved.x = false;
                                     b.solved.y = true;
+                                    b.solved.z = false;
                                 } else {
                                     let v = b.velocity.y();
                                     if v.signum() == d.signum() {
@@ -772,6 +876,17 @@ fn solve_system(
                     normals: manifold.normals,
                 });
         }
+        if !a.solved.z {
+            transaction
+                .entry(manifold.body1)
+                .or_default()
+                .z
+                .push(CollisionInfo {
+                    other: manifold.body1,
+                    penetration: manifold.penetration,
+                    normals: manifold.normals,
+                });
+        }
 
         if !b.solved.x {
             transaction
@@ -796,14 +911,28 @@ fn solve_system(
                     normals: -manifold.normals,
                 });
         }
+
+        if !b.solved.z {
+            transaction
+                .entry(manifold.body2)
+                .or_default()
+                .z
+                .push(CollisionInfo {
+                    other: manifold.body1,
+                    penetration: -manifold.penetration,
+                    normals: -manifold.normals,
+                });
+        }
     }
 
     for (mut body, collisions) in &mut query.iter() {
         body.solved.x = false;
         body.solved.y = false;
+        body.solved.z = false;
         if let Some(mut collisions) = collisions {
             collisions.x.clear();
             collisions.y.clear();
+            collisions.z.clear();
         }
     }
 
@@ -854,8 +983,8 @@ fn physics_step_system(
         let velocity = body.velocity + body.accumulator * delta_time;
         let velocity = velocity + body.dynamic_acc;
         body.velocity = velocity;
-        body.accumulator = Vec2::zero();
-        body.dynamic_acc = Vec2::zero();
+        body.accumulator = Vec3::zero();
+        body.dynamic_acc = Vec3::zero();
 
         if matches!(body.status, Status::Semikinematic) {
             let vel = body.velocity;
@@ -872,6 +1001,12 @@ fn physics_step_system(
                 Some(Ordering::Equal) => {}
                 None => *body.velocity.y_mut() = 0.0,
             }
+            match vel.z().partial_cmp(&0.0) {
+                Some(Ordering::Less) => *body.velocity.z_mut() = vel.z().max(-limit.z()),
+                Some(Ordering::Greater) => *body.velocity.z_mut() = vel.z().min(limit.z()),
+                Some(Ordering::Equal) => {}
+                None => *body.velocity.z_mut() = 0.0,
+            }
         }
 
         let position = body.position + body.velocity * delta_time;
@@ -885,6 +1020,9 @@ fn physics_step_system(
                 if body.velocity.y().abs() <= body.prev_velocity.y().abs() {
                     *body.velocity.y_mut() *= friction.0
                 }
+                if body.velocity.z().abs() <= body.prev_velocity.z().abs() {
+                    *body.velocity.z_mut() *= friction.0
+                }
             }
             Status::Static => {}
         }
@@ -892,310 +1030,9 @@ fn physics_step_system(
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum TranslationMode {
-    AxesXY,
-    AxesXZ,
-    AxesYZ,
-}
-
-impl Default for TranslationMode {
-    fn default() -> Self {
-        Self::AxesXY
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum RotationMode {
-    AxisX,
-    AxisY,
-    AxisZ,
-}
-
-impl Default for RotationMode {
-    fn default() -> Self {
-        Self::AxisZ
-    }
-}
-
-pub fn sync_transform_system(
-    translation_mode: Res<TranslationMode>,
-    rotation_mode: Res<RotationMode>,
-    mut query: Query<(&RigidBody, Mut<Transform>)>,
-) {
+pub fn sync_transform_system(mut query: Query<(&RigidBody, Mut<Transform>)>) {
     for (body, mut transform) in &mut query.iter() {
-        match *translation_mode {
-            TranslationMode::AxesXY => {
-                let x = body.position.x();
-                let y = body.position.y();
-                let z = 0.0;
-                transform.set_translation(Vec3::new(x, y, z));
-            }
-            TranslationMode::AxesXZ => {
-                let x = body.position.x();
-                let y = 0.0;
-                let z = body.position.y();
-                transform.set_translation(Vec3::new(x, y, z));
-            }
-            TranslationMode::AxesYZ => {
-                let x = 0.0;
-                let y = body.position.x();
-                let z = body.position.y();
-                transform.set_translation(Vec3::new(x, y, z));
-            }
-        }
-        match *rotation_mode {
-            RotationMode::AxisX => {
-                transform.set_rotation(Quat::from_rotation_x(body.rotation));
-            }
-            RotationMode::AxisY => {
-                transform.set_rotation(Quat::from_rotation_y(body.rotation));
-            }
-            RotationMode::AxisZ => {
-                transform.set_rotation(Quat::from_rotation_z(body.rotation));
-            }
-        }
-    }
-}
-
-pub const DEBUG_MESH: Handle<Mesh> = Handle::from_bytes([
-    226, 81, 40, 16, 70, 208, 159, 71, 87, 31, 13, 163, 88, 87, 21, 114,
-]);
-
-pub fn init_debug_system(translation_mode: Res<TranslationMode>, mut meshes: ResMut<Assets<Mesh>>) {
-    let positions = match *translation_mode {
-        TranslationMode::AxesXY => vec![
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [1.0, 1.0, 0.0],
-            [0.0, 1.0, 0.0],
-        ],
-        TranslationMode::AxesXZ => vec![
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [1.0, 0.0, 1.0],
-            [0.0, 0.0, 1.0],
-        ],
-        TranslationMode::AxesYZ => vec![
-            [0.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            [0.0, 1.0, 1.0],
-            [0.0, 0.0, 1.0],
-        ],
-    };
-    let normals = match *translation_mode {
-        TranslationMode::AxesXY => vec![[0.0, 0.0, 1.0]; 4],
-        TranslationMode::AxesXZ => vec![[0.0, 1.0, 0.0]; 4],
-        TranslationMode::AxesYZ => vec![[1.0, 0.0, 0.0]; 4],
-    };
-    let uvs = vec![[0.0, 0.0]; 4];
-    let indices = vec![0, 1, 1, 2, 2, 3, 3, 0];
-    let attributes = vec![
-        VertexAttribute::position(positions),
-        VertexAttribute::normal(normals),
-        VertexAttribute::uv(uvs),
-    ];
-    let mesh = Mesh {
-        primitive_topology: PrimitiveTopology::LineList,
-        attributes,
-        indices: Some(indices),
-    };
-    meshes.set(DEBUG_MESH, mesh);
-}
-
-#[derive(Debug, Clone, Copy, RenderResources, ShaderDefs)]
-pub struct DebugMaterial {
-    color: Color,
-}
-
-impl From<Color> for DebugMaterial {
-    fn from(color: Color) -> Self {
-        Self { color }
-    }
-}
-
-#[derive(Debug)]
-pub struct DebugBody;
-
-#[derive(Debug)]
-pub struct DebugShape;
-
-#[derive(Debug)]
-pub struct DebugRender;
-
-#[derive(Bundle)]
-pub struct DebugRenderComponents {
-    pub debug: DebugRender,
-    pub mesh: Handle<Mesh>,
-    pub material: Handle<DebugMaterial>,
-    pub main_pass: MainPass,
-    pub draw: Draw,
-    pub render_pipelines: RenderPipelines,
-    pub transform: Transform,
-    pub global_transform: GlobalTransform,
-}
-
-impl Default for DebugRenderComponents {
-    fn default() -> Self {
-        Self {
-            debug: DebugRender,
-            mesh: DEBUG_MESH,
-            material: Default::default(),
-            main_pass: Default::default(),
-            draw: Default::default(),
-            render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::specialized(
-                DEBUG_PIPELINE_HANDLE,
-                PipelineSpecialization {
-                    dynamic_bindings: vec![DynamicBinding {
-                        bind_group: 2,
-                        binding: 0,
-                    }],
-                    ..Default::default()
-                },
-            )]),
-            transform: Default::default(),
-            global_transform: Default::default(),
-        }
-    }
-}
-
-pub fn debug_render_system(
-    mut commands: Commands,
-    mut materials: ResMut<Assets<DebugMaterial>>,
-    mut query: Query<With<DebugBody, (Entity, &RigidBody, &Children)>>,
-    shapes: Query<Without<DebugShape, &Shape>>,
-    mut debug: Query<With<DebugRender, (&Parent, Mut<Draw>)>>,
-) {
-    for (entity, body, children) in &mut query.iter() {
-        let color = if body.sensor {
-            Color::rgb(0.0, 1.0, 1.0)
-        } else {
-            match body.status {
-                Status::Static => Color::rgb(0.0, 1.0, 0.0),
-                Status::Semikinematic => Color::rgb(1.0, 0.0, 0.0),
-            }
-        };
-        let mut material = None;
-        let mut new_children = SmallVec::<[Entity; 8]>::new();
-        for &shape in children.iter() {
-            if let Ok(shape_ref) = shapes.get::<Shape>(shape) {
-                if material.is_none() {
-                    material = Some(materials.add(color.into()));
-                }
-                let material = material.unwrap();
-                let offset = shape_ref.offset;
-                let size = shape_ref.size;
-                commands
-                    .insert_one(shape, DebugShape)
-                    .spawn(DebugRenderComponents {
-                        material,
-                        transform: Transform::from_translation(Vec3::new(
-                            offset.x(),
-                            offset.y(),
-                            0.0,
-                        ))
-                        .with_non_uniform_scale(Vec3::new(
-                            size.width,
-                            size.height,
-                            1.0,
-                        )),
-                        ..Default::default()
-                    })
-                    .with(Parent(entity))
-                    .for_current_entity(|e| {
-                        new_children.push(e);
-                    });
-            }
-        }
-        commands.push_children(entity, &new_children);
-    }
-
-    for (parent, mut draw) in &mut debug.iter() {
-        let body = query.get::<RigidBody>(**parent).unwrap();
-        draw.is_visible = body.active;
-    }
-}
-
-pub const DEBUG_PIPELINE_HANDLE: Handle<PipelineDescriptor> = Handle::from_bytes([
-    94, 231, 249, 140, 146, 108, 29, 243, 61, 57, 59, 120, 40, 178, 172, 61,
-]);
-
-pub fn build_debug_pipeline(shaders: &mut Assets<Shader>) -> PipelineDescriptor {
-    PipelineDescriptor {
-        rasterization_state: Some(RasterizationStateDescriptor {
-            front_face: FrontFace::Ccw,
-            cull_mode: CullMode::None,
-            depth_bias: 0,
-            depth_bias_slope_scale: 0.0,
-            depth_bias_clamp: 0.0,
-            clamp_depth: false,
-        }),
-        depth_stencil_state: Some(DepthStencilStateDescriptor {
-            format: TextureFormat::Depth32Float,
-            depth_write_enabled: true,
-            depth_compare: CompareFunction::LessEqual,
-            stencil: StencilStateDescriptor {
-                front: StencilStateFaceDescriptor::IGNORE,
-                back: StencilStateFaceDescriptor::IGNORE,
-                read_mask: 0,
-                write_mask: 0,
-            },
-        }),
-        color_states: vec![ColorStateDescriptor {
-            format: TextureFormat::Bgra8UnormSrgb,
-            color_blend: BlendDescriptor {
-                src_factor: BlendFactor::SrcAlpha,
-                dst_factor: BlendFactor::OneMinusSrcAlpha,
-                operation: BlendOperation::Add,
-            },
-            alpha_blend: BlendDescriptor {
-                src_factor: BlendFactor::One,
-                dst_factor: BlendFactor::One,
-                operation: BlendOperation::Add,
-            },
-            write_mask: ColorWrite::ALL,
-        }],
-        ..PipelineDescriptor::new(ShaderStages {
-            vertex: shaders.add(Shader::from_glsl(
-                ShaderStage::Vertex,
-                include_str!("debug_shader.vert"),
-            )),
-            fragment: Some(shaders.add(Shader::from_glsl(
-                ShaderStage::Fragment,
-                include_str!("debug_shader.frag"),
-            ))),
-        })
-    }
-}
-
-pub mod node {
-    pub const TRANSFORM: &str = "transform";
-    pub const DEBUG_MATERIAL: &str = "debug_material";
-}
-
-pub trait DebugRenderGraphBuilder {
-    fn add_debug_graph(&mut self, resources: &Resources) -> &mut Self;
-}
-
-impl DebugRenderGraphBuilder for RenderGraph {
-    fn add_debug_graph(&mut self, resources: &Resources) -> &mut Self {
-        self.add_system_node(
-            node::TRANSFORM,
-            RenderResourcesNode::<GlobalTransform>::new(true),
-        );
-        self.add_system_node(
-            node::DEBUG_MATERIAL,
-            AssetRenderResourcesNode::<ColorMaterial>::new(false),
-        );
-
-        self.add_node_edge(node::TRANSFORM, base::node::MAIN_PASS)
-            .unwrap();
-        self.add_node_edge(node::DEBUG_MATERIAL, base::node::MAIN_PASS)
-            .unwrap();
-
-        let mut pipelines = resources.get_mut::<Assets<PipelineDescriptor>>().unwrap();
-        let mut shaders = resources.get_mut::<Assets<Shader>>().unwrap();
-        pipelines.set(DEBUG_PIPELINE_HANDLE, build_debug_pipeline(&mut shaders));
-        self
+        transform.set_translation(body.position);
+        transform.set_rotation(body.rotation);
     }
 }
