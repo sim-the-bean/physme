@@ -52,6 +52,18 @@ fn setup(
         )
         .with_children(|parent| {
             parent.spawn((Shape::from(Size::new(120.0, 20.0)),));
+        })
+        .spawn(SpriteComponents {
+            material: materials.add(plat.into()),
+            ..Default::default()
+        })
+        .with(
+            RigidBody::new(Mass::Real(1.0))
+                .with_status(Status::Static)
+                .with_position(Vec2::new(120.0, -80.0)),
+        )
+        .with_children(|parent| {
+            parent.spawn((Shape::from(Size::new(120.0, 20.0)),));
         });
 }
 
