@@ -44,6 +44,7 @@ impl Plugin for Physics2dPlugin {
             .add_resource(GlobalGravity::default())
             .add_resource(TranslationMode::default())
             .add_resource(RotationMode::default())
+            .add_resource(StepAxis::default())
             .add_event::<Manifold>()
             .add_stage_before(stage::UPDATE, stage::PHYSICS_STEP)
             .add_stage_after(stage::PHYSICS_STEP, stage::BROAD_PHASE)
@@ -82,6 +83,42 @@ pub type BroadPhase = broad::BroadPhase<Aabb>;
 
 #[derive(Default, Debug, Clone, Copy, PartialEq)]
 pub struct GlobalGravity(pub Vec2);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StepAxis {
+    X,
+    Y,
+}
+
+impl Default for StepAxis {
+    fn default() -> Self {
+        Self::Y
+    }
+}
+
+#[derive(Default, Debug, Clone, Copy, PartialEq)]
+pub struct GlobalStep {
+    pub axis: StepAxis,
+    pub step: f32,
+}
+
+impl GlobalStep {
+    pub fn y(step: f32) -> Self {
+        Self {
+            axis: StepAxis::Y,
+            step,
+        }
+    }
+}
+
+impl GlobalStep {
+    pub fn x(step: f32) -> Self {
+        Self {
+            axis: StepAxis::X,
+            step,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Aabb {
@@ -171,6 +208,7 @@ pub struct RigidBody {
     pub position: Vec2,
     pub rotation: f32,
     pub velocity: Vec2,
+    prev_velocity: Vec2,
     pub terminal: Vec2,
     accumulator: Vec2,
     pub status: Status,
@@ -187,6 +225,7 @@ impl RigidBody {
             position: Vec2::zero(),
             rotation: 0.0,
             velocity: Vec2::zero(),
+            prev_velocity: Vec2::zero(),
             terminal: Vec2::new(f32::INFINITY, f32::INFINITY),
             accumulator: Vec2::zero(),
             status: Status::Dynamic,
@@ -405,6 +444,7 @@ fn solve_system(
     mut solver: Local<Solver>,
     time: Res<Time>,
     manifolds: Res<Events<Manifold>>,
+    step: Res<GlobalStep>,
     mut query: Query<(Mut<RigidBody>, Option<&Collisions>)>,
 ) {
     let delta_time = time.delta.as_secs_f32();
@@ -418,6 +458,9 @@ fn solve_system(
         if a.sensor || b.sensor {
             continue;
         }
+
+        let mut a_maybe_step = None;
+        let mut b_maybe_step = None;
 
         {
             let rv = b.velocity.x() - a.velocity.x();
@@ -463,10 +506,16 @@ fn solve_system(
                             if v.signum() == d.signum() {
                                 // nothing
                             } else if d.abs() < v.abs() {
+                                if step.axis == StepAxis::Y {
+                                    a_maybe_step = Some((-d, a.velocity.x()));
+                                }
                                 a.solved.x = true;
                                 *a.velocity.x_mut() = 0.0;
                                 *a.position.x_mut() += d;
                             } else {
+                                if step.axis == StepAxis::Y {
+                                    a_maybe_step = Some((v, a.velocity.x()));
+                                }
                                 a.solved.x = true;
                                 *a.velocity.x_mut() = 0.0;
                                 *a.position.x_mut() -= v;
@@ -504,10 +553,16 @@ fn solve_system(
                             if v.signum() == d.signum() {
                                 // nothing
                             } else if d.abs() < v.abs() {
+                                if step.axis == StepAxis::Y {
+                                    b_maybe_step = Some((-d, b.velocity.x()));
+                                }
                                 b.solved.x = true;
                                 *b.velocity.x_mut() = 0.0;
                                 *b.position.x_mut() += d;
                             } else {
+                                if step.axis == StepAxis::Y {
+                                    b_maybe_step = Some((v, b.velocity.x()));
+                                }
                                 b.solved.x = true;
                                 *b.velocity.x_mut() = 0.0;
                                 *b.position.x_mut() -= v;
@@ -562,17 +617,23 @@ fn solve_system(
                     if solve && !a.solved.y {
                         if !manifold.contained[0].y {
                             let d = -manifold.normals.y() * manifold.penetration.y();
-                            let v = a.velocity.y() * delta_time;
-                            if v.signum() == d.signum() {
-                                // nothing
-                            } else if d.abs() < v.abs() {
-                                a.solved.y = true;
-                                *a.velocity.y_mut() = 0.0;
+                            if a_maybe_step.is_some() && step.axis == StepAxis::Y && d <= step.step
+                            {
+                                let (dx, vx) = a_maybe_step.unwrap();
                                 *a.position.y_mut() += d;
-                            } else {
+                                *a.position.x_mut() += dx;
+                                *a.velocity.x_mut() = vx;
+                                a.solved.x = false;
                                 a.solved.y = true;
-                                *a.velocity.y_mut() = 0.0;
-                                *a.position.y_mut() -= v;
+                            } else {
+                                let v = a.velocity.y();
+                                if v.signum() == d.signum() {
+                                    // nothing
+                                } else {
+                                    a.solved.y = true;
+                                    *a.velocity.y_mut() = 0.0;
+                                    *a.position.y_mut() += d;
+                                }
                             }
                         }
                     }
@@ -602,19 +663,24 @@ fn solve_system(
                     }
                     if solve && !b.solved.y {
                         if !manifold.contained[1].y {
-                            b.solved.y = true;
                             let d = manifold.normals.y() * manifold.penetration.y();
-                            let v = b.velocity.y() * delta_time;
-                            if v.signum() == d.signum() {
-                                // nothing
-                            } else if d.abs() < v.abs() {
-                                b.solved.y = true;
-                                *b.velocity.y_mut() = 0.0;
+                            if b_maybe_step.is_some() && step.axis == StepAxis::Y && d <= step.step
+                            {
+                                let (dx, vx) = b_maybe_step.unwrap();
                                 *b.position.y_mut() += d;
-                            } else {
+                                *b.position.x_mut() += dx;
+                                *b.velocity.x_mut() = vx;
+                                b.solved.x = false;
                                 b.solved.y = true;
-                                *b.velocity.y_mut() = 0.0;
-                                *b.position.y_mut() -= v;
+                            } else {
+                                let v = b.velocity.y();
+                                if v.signum() == d.signum() {
+                                    // nothing
+                                } else {
+                                    b.solved.y = true;
+                                    *b.velocity.y_mut() = 0.0;
+                                    *b.position.y_mut() += d;
+                                }
                             }
                         }
                     }
@@ -722,7 +788,6 @@ fn physics_step_system(
         }
 
         body.accumulator += gravity.0;
-        body.velocity *= friction.0;
 
         let velocity = body.velocity + body.accumulator * delta_time;
         body.velocity = velocity;
@@ -747,6 +812,20 @@ fn physics_step_system(
 
         let position = body.position + body.velocity * delta_time;
         body.position = position;
+
+        match body.status {
+            Status::Semikinematic => {
+                if body.velocity.x().abs() <= body.prev_velocity.x().abs() {
+                    *body.velocity.x_mut() *= friction.0
+                }
+                if body.velocity.y().abs() <= body.prev_velocity.y().abs() {
+                    *body.velocity.y_mut() *= friction.0
+                }
+            }
+            Status::Dynamic => body.velocity *= friction.0,
+            Status::Static => {}
+        }
+        body.prev_velocity = body.velocity;
     }
 }
 

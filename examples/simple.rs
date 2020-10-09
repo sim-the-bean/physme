@@ -12,7 +12,8 @@ fn main() {
         .add_default_plugins()
         .add_plugin(Physics2dPlugin)
         .add_resource(GlobalGravity(Vec2::new(0.0, -500.0)))
-        .add_resource(GlobalFriction(0.98))
+        .add_resource(GlobalFriction(0.90))
+        .add_resource(GlobalStep::y(20.0))
         .add_startup_system(setup.system());
     let character_system = CharacterControllerSystem::default().system(builder.resources_mut());
     builder.add_system(character_system);
@@ -35,7 +36,8 @@ fn setup(
         .with(
             RigidBody::new(Mass::Real(1.0))
                 .with_status(Status::Semikinematic)
-                .with_position(Vec2::new(0.0, 0.0)),
+                .with_position(Vec2::new(0.0, 0.0))
+                .with_terminal(Vec2::new(500.0, 1000.0)),
         )
         .with(CharacterController::default())
         .with_children(|parent| {
@@ -60,7 +62,43 @@ fn setup(
         .with(
             RigidBody::new(Mass::Real(1.0))
                 .with_status(Status::Static)
-                .with_position(Vec2::new(120.0, -80.0)),
+                .with_position(Vec2::new(120.0, -90.0)),
+        )
+        .with_children(|parent| {
+            parent.spawn((Shape::from(Size::new(120.0, 20.0)),));
+        })
+        .spawn(SpriteComponents {
+            material: materials.add(plat.into()),
+            ..Default::default()
+        })
+        .with(
+            RigidBody::new(Mass::Real(1.0))
+                .with_status(Status::Static)
+                .with_position(Vec2::new(360.0, -50.0)),
+        )
+        .with_children(|parent| {
+            parent.spawn((Shape::from(Size::new(120.0, 20.0)),));
+        })
+        .spawn(SpriteComponents {
+            material: materials.add(plat.into()),
+            ..Default::default()
+        })
+        .with(
+            RigidBody::new(Mass::Real(1.0))
+                .with_status(Status::Static)
+                .with_position(Vec2::new(120.0, -10.0)),
+        )
+        .with_children(|parent| {
+            parent.spawn((Shape::from(Size::new(120.0, 20.0)),));
+        })
+        .spawn(SpriteComponents {
+            material: materials.add(plat.into()),
+            ..Default::default()
+        })
+        .with(
+            RigidBody::new(Mass::Real(1.0))
+                .with_status(Status::Static)
+                .with_position(Vec2::new(-120.0, 20.0)),
         )
         .with_children(|parent| {
             parent.spawn((Shape::from(Size::new(120.0, 20.0)),));
