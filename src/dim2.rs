@@ -164,6 +164,7 @@ impl From<Size> for Shape {
     }
 }
 
+#[doc(hidden)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Joint {
     body1: Entity,
