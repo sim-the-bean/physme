@@ -40,7 +40,8 @@ fn setup(
             RigidBody::new(Mass::Real(1.0))
                 .with_status(Status::Semikinematic)
                 .with_position(Vec2::new(0.0, 0.0))
-                .with_terminal(Vec2::new(500.0, 1000.0)),
+                .with_terminal(Vec2::new(500.0, 1000.0))
+                .with_angular_terminal(7.8),
         )
         .with(CharacterController::default())
         .with_children(|parent| {
@@ -175,10 +176,12 @@ fn character_system(
             }
         }
         if input.pressed(KeyCode::A) {
-            body.apply_impulse(Vec2::new(-5.0, 0.0));
+            body.apply_linear_impulse(Vec2::new(-5.0, 0.0));
+            body.apply_angular_impulse(1.0);
         }
         if input.pressed(KeyCode::D) {
-            body.apply_impulse(Vec2::new(5.0, 0.0));
+            body.apply_linear_impulse(Vec2::new(5.0, 0.0));
+            body.apply_angular_impulse(-1.0);
         }
         controller.on_ground = false;
     }

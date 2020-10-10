@@ -270,14 +270,21 @@ pub struct RigidBody {
     /// NOTE: collisions checks may or may not be broken if this is not a multiple of 90 degrees.
     pub rotation: f32,
     /// Current linear velocity of this rigid body.
-    pub velocity: Vec2,
-    prev_velocity: Vec2,
-    /// The terminal velocity of a semikinematic body.
+    pub linvel: Vec2,
+    prev_linvel: Vec2,
+    /// The terminal linear velocity of a semikinematic body.
     ///
     /// Defaults to `f32::INFINITY`.
     pub terminal: Vec2,
     accumulator: Vec2,
     dynamic_acc: Vec2,
+    /// Current angular velocity of this rigid body.
+    pub angvel: f32,
+    prev_angvel: f32,
+    /// The terminal angular velocity of a semikinematic body.
+    ///
+    /// Defaults to `f32::INFINITY`.
+    pub ang_term: f32,
     /// The status, i.e. static or semikinematic.
     ///
     /// Affects how forces and collisions affect this rigid body.
@@ -296,11 +303,14 @@ impl RigidBody {
             position: Vec2::zero(),
             lowest_position: Vec2::zero(),
             rotation: 0.0,
-            velocity: Vec2::zero(),
-            prev_velocity: Vec2::zero(),
+            linvel: Vec2::zero(),
+            prev_linvel: Vec2::zero(),
             terminal: Vec2::new(f32::INFINITY, f32::INFINITY),
             accumulator: Vec2::zero(),
             dynamic_acc: Vec2::zero(),
+            angvel: 0.0,
+            prev_angvel: 0.0,
+            ang_term: f32::INFINITY,
             status: Status::Semikinematic,
             mass: mass.scalar(),
             inv_mass: mass.inverse(),
@@ -322,15 +332,27 @@ impl RigidBody {
         self
     }
 
-    /// Returns a `RigidBody` identical to this one, but with the velocity set to a new one.
-    pub fn with_velocity(mut self, velocity: Vec2) -> Self {
-        self.velocity = velocity;
+    /// Returns a `RigidBody` identical to this one, but with the linear velocity set to a new one.
+    pub fn with_linear_velocity(mut self, linvel: Vec2) -> Self {
+        self.linvel = linvel;
         self
     }
 
-    /// Returns a `RigidBody` identical to this one, but with the terminal velocity set to a new one.
+    /// Returns a `RigidBody` identical to this one, but with the linear velocity set to a new one.
+    pub fn with_angular_velocity(mut self, angvel: f32) -> Self {
+        self.angvel = angvel;
+        self
+    }
+
+    /// Returns a `RigidBody` identical to this one, but with the terminal linear velocity set to a new one.
     pub fn with_terminal(mut self, terminal: Vec2) -> Self {
         self.terminal = terminal;
+        self
+    }
+
+    /// Returns a `RigidBody` identical to this one, but with the terminal linear velocity set to a new one.
+    pub fn with_angular_terminal(mut self, terminal: f32) -> Self {
+        self.ang_term = terminal;
         self
     }
 
@@ -358,9 +380,14 @@ impl RigidBody {
         self
     }
 
-    /// Applies an impulse to the `RigidBody`s velocity.
-    pub fn apply_impulse(&mut self, impulse: Vec2) {
-        self.velocity += impulse * self.inv_mass;
+    /// Applies an impulse to the `RigidBody`s linear velocity.
+    pub fn apply_linear_impulse(&mut self, impulse: Vec2) {
+        self.linvel += impulse * self.inv_mass;
+    }
+
+    /// Applies an impulse to the `RigidBody`s linear velocity.
+    pub fn apply_angular_impulse(&mut self, impulse: f32) {
+        self.angvel += impulse * self.inv_mass;
     }
 
     /// Applies a force to the `RigidBody`s acceleration accumulator.
@@ -702,14 +729,14 @@ fn solve_system(
             let push_angle = up.0.abs().dot(manifold.normal.abs()).acos();
             if push_angle > ang_tol.0 {
                 let sum_recip = (a.mass + b.mass).recip();
-                let br = b.velocity * b.mass;
-                let ar = a.velocity * a.mass;
+                let br = b.linvel * b.mass;
+                let ar = a.linvel * a.mass;
                 let rv = br * sum_recip - ar * sum_recip;
 
                 let impulse = -rv * manifold.normal.abs();
 
-                let a = a.velocity - impulse;
-                let b = b.velocity + impulse;
+                let a = a.linvel - impulse;
+                let b = b.linvel + impulse;
                 Some((a, b))
             } else {
                 None
@@ -728,12 +755,11 @@ fn solve_system(
                     a.dynamic_acc += impulse;
 
                     let d = -manifold.normal * manifold.penetration;
-                    let v = a.velocity * delta_time;
+                    let v = a.linvel * delta_time;
                     if v.sign() == d.sign() {
                         // nothing
                     } else {
-                        a.velocity *=
-                            Vec2::new(manifold.normal.y().abs(), manifold.normal.x().abs());
+                        a.linvel *= Vec2::new(manifold.normal.y().abs(), manifold.normal.x().abs());
                         a.position += d;
                     }
                 } else {
@@ -757,11 +783,11 @@ fn solve_system(
 
                     if solve {
                         let d = -manifold.normal * manifold.penetration;
-                        let v = a.velocity * delta_time;
+                        let v = a.linvel * delta_time;
                         if v.sign() == d.sign() {
                             // nothing
                         } else {
-                            a.velocity *=
+                            a.linvel *=
                                 Vec2::new(manifold.normal.y().abs(), manifold.normal.x().abs());
                             a.position += d;
                         }
@@ -779,12 +805,11 @@ fn solve_system(
                     b.dynamic_acc += impulse;
 
                     let d = manifold.normal * manifold.penetration;
-                    let v = b.velocity * delta_time;
+                    let v = b.linvel * delta_time;
                     if v.sign() == d.sign() {
                         // nothing
                     } else {
-                        b.velocity *=
-                            Vec2::new(manifold.normal.y().abs(), manifold.normal.x().abs());
+                        b.linvel *= Vec2::new(manifold.normal.y().abs(), manifold.normal.x().abs());
                         b.position += d;
                     }
                 } else {
@@ -808,11 +833,11 @@ fn solve_system(
 
                     if solve {
                         let d = manifold.normal * manifold.penetration;
-                        let v = b.velocity * delta_time;
+                        let v = b.linvel * delta_time;
                         if v.sign() == d.sign() {
                             // nothing
                         } else {
-                            b.velocity *=
+                            b.linvel *=
                                 Vec2::new(manifold.normal.y().abs(), manifold.normal.x().abs());
                             b.position += d;
                         }
@@ -867,44 +892,59 @@ fn physics_step_system(
             body.accumulator += gravity.0;
         }
 
-        let velocity = body.velocity + body.accumulator * delta_time;
-        let velocity = velocity + body.dynamic_acc;
-        body.velocity = velocity;
+        let linvel = body.linvel + body.accumulator * delta_time;
+        let linvel = linvel + body.dynamic_acc;
+        body.linvel = linvel;
         body.accumulator = Vec2::zero();
         body.dynamic_acc = Vec2::zero();
 
         if matches!(body.status, Status::Semikinematic) {
-            let vel = body.velocity;
+            let vel = body.linvel;
             let limit = body.terminal;
             match vel.x().partial_cmp(&0.0) {
-                Some(Ordering::Less) => *body.velocity.x_mut() = vel.x().max(-limit.x()),
-                Some(Ordering::Greater) => *body.velocity.x_mut() = vel.x().min(limit.x()),
+                Some(Ordering::Less) => *body.linvel.x_mut() = vel.x().max(-limit.x()),
+                Some(Ordering::Greater) => *body.linvel.x_mut() = vel.x().min(limit.x()),
                 Some(Ordering::Equal) => {}
-                None => *body.velocity.x_mut() = 0.0,
+                None => *body.linvel.x_mut() = 0.0,
             }
             match vel.y().partial_cmp(&0.0) {
-                Some(Ordering::Less) => *body.velocity.y_mut() = vel.y().max(-limit.y()),
-                Some(Ordering::Greater) => *body.velocity.y_mut() = vel.y().min(limit.y()),
+                Some(Ordering::Less) => *body.linvel.y_mut() = vel.y().max(-limit.y()),
+                Some(Ordering::Greater) => *body.linvel.y_mut() = vel.y().min(limit.y()),
                 Some(Ordering::Equal) => {}
-                None => *body.velocity.y_mut() = 0.0,
+                None => *body.linvel.y_mut() = 0.0,
+            }
+            let vel = body.angvel;
+            let limit = body.ang_term;
+            match vel.partial_cmp(&0.0) {
+                Some(Ordering::Less) => body.angvel = vel.max(-limit),
+                Some(Ordering::Greater) => body.angvel = vel.min(limit),
+                Some(Ordering::Equal) => {}
+                None => body.angvel = 0.0,
             }
         }
 
-        let position = body.position + body.velocity * delta_time;
+        let position = body.position + body.linvel * delta_time;
         body.position = position;
+
+        let rotation = body.rotation + body.angvel * delta_time;
+        body.rotation = rotation;
 
         match body.status {
             Status::Semikinematic => {
-                if body.velocity.x().abs() <= body.prev_velocity.x().abs() {
-                    *body.velocity.x_mut() *= friction.0
+                if body.linvel.x().abs() <= body.prev_linvel.x().abs() {
+                    *body.linvel.x_mut() *= friction.0
                 }
-                if body.velocity.y().abs() <= body.prev_velocity.y().abs() {
-                    *body.velocity.y_mut() *= friction.0
+                if body.linvel.y().abs() <= body.prev_linvel.y().abs() {
+                    *body.linvel.y_mut() *= friction.0
+                }
+                if body.angvel.abs() <= body.prev_angvel.abs() {
+                    body.angvel *= friction.0
                 }
             }
             Status::Static => {}
         }
-        body.prev_velocity = body.velocity;
+        body.prev_linvel = body.linvel;
+        body.prev_angvel = body.angvel;
 
         for &child in children.iter() {
             if let Ok(shape) = shapes.get::<Shape>(child) {
