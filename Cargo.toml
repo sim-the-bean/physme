@@ -1,10 +1,15 @@
 [package]
 name = "physme"
+description = "A simple 2d and 3d physics engine for bevy"
 version = "0.1.0"
 authors = ["Szymon Walter <waltersz@protonmail.com>"]
 edition = "2018"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+readme = "README.md"
+homepage = "https://github.com/walterpie/physme"
+repository = "https://github.com/walterpie/physme"
+license = "MIT"
+keywords = ["gamedev", "physics", "rigid", "real-time", "aabb"]
+categories = ["game-development"]
 
 [dependencies]
 smallvec = "1.4"
