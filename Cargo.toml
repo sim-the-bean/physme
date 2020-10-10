@@ -17,5 +17,6 @@ rstar = "0.8"
 hashbrown = "0.9"
 
 [dependencies.bevy]
+version = "0.2.1"
 git = "https://github.com/bevyengine/bevy.git"
 branch = "master"
