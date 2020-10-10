@@ -1,3 +1,6 @@
+//! This module provides the broad phase using an R*-tree.  You shouldn't
+//! have to use it directly.
+
 use std::ops::{Deref, DerefMut};
 
 use bevy::math::*;
@@ -117,6 +120,7 @@ impl Point for NPoint<Vec3> {
     }
 }
 
+/// A simple wrapper around `rstar`s AABB.  Generic over the dimesions of the point.
 pub struct BoundingBox<P: PhysPoint>
 where
     NPoint<P>: Point,
@@ -128,6 +132,7 @@ impl<P: PhysPoint> BoundingBox<P>
 where
     NPoint<P>: Point,
 {
+    /// Create a new `BoundingBox` with the minimum and maximum points.
     pub fn new(min: P, max: P) -> Self {
         Self {
             aabb: AABB::from_corners(NPoint::from(min), NPoint::from(max)),
@@ -135,13 +140,17 @@ where
     }
 }
 
+/// A generic collider trait for the shapes in `dim2` and `dim3`.
 pub trait Collider
 where
     NPoint<Self::Point>: Point,
 {
+    /// The n-dimensional point over which this collider is generic.
     type Point: PhysPoint;
 
+    /// Get the `BoundingBox` of this collider.
     fn bounding_box(&self) -> BoundingBox<Self::Point>;
+    /// Get the `Status` of this collider (Static or Semikinematic).
     fn status(&self) -> Status;
 }
 
@@ -161,6 +170,7 @@ impl RTreeObject for dim3::Aabb {
     }
 }
 
+/// The broad phase, using an R*-tree.
 #[derive(Default, Debug, Clone)]
 pub struct BroadPhase<T: RTreeObject> {
     rstar: RTree<T>,
@@ -170,18 +180,16 @@ impl<T: RTreeObject + Collider> BroadPhase<T>
 where
     NPoint<T::Point>: Point,
 {
-    pub fn new() -> Self {
-        Self {
-            rstar: RTree::new(),
-        }
-    }
-
+    /// Create a new `BroadPhase` with some colliders.
     pub fn with_colliders(colliders: Vec<T>) -> Self {
         Self {
             rstar: RTree::bulk_load(colliders),
         }
     }
 
+    /// Iterate through all pairs of shapes that are potentially colliding.
+    ///
+    /// Collisions with static objects are iterated over before semikinematic.
     pub fn iter(&self) -> impl Iterator<Item = (&T, &T)> + '_ {
         let statics = self
             .rstar

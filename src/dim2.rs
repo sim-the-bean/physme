@@ -1,3 +1,7 @@
+//! This module provides the primitives and systems for 2d physics simulation.
+//!
+//! For examples, see the root of the crate.
+
 use std::cmp::Ordering;
 use std::mem;
 
@@ -9,9 +13,11 @@ use smallvec::SmallVec;
 use crate::broad::{self, BoundingBox, Collider};
 use crate::common::*;
 
+/// This is what you want to add to your `App` if you want to run 2d physics simulation.
 pub struct Physics2dPlugin;
 
 pub mod stage {
+    #[doc(hidden)]
     pub use bevy::prelude::stage::*;
 
     pub const PHYSICS_STEP: &str = "physics_step";
@@ -46,12 +52,18 @@ impl Plugin for Physics2dPlugin {
 
 pub type BroadPhase = broad::BroadPhase<Aabb>;
 
+/// The global gravity that affects every `RigidBody` with the `Semikinematic` status.
 #[derive(Default, Debug, Clone, Copy, PartialEq)]
 pub struct GlobalGravity(pub Vec2);
 
+/// The axis on which stepping should be performed.
+///
+/// NOTE: The X axis is not implemented yet and will quietly do nothing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StepAxis {
+    /// Perform steps along the X axis.
     X,
+    /// Perform steps along the Y axis.
     Y,
 }
 
@@ -61,22 +73,25 @@ impl Default for StepAxis {
     }
 }
 
+/// The global step value, affects all semikinematic bodies.
 #[derive(Default, Debug, Clone, Copy, PartialEq)]
 pub struct GlobalStep {
+    /// The axis to stap along.
     pub axis: StepAxis,
+    /// The maximum height at which to allow stepping.
     pub step: f32,
 }
 
 impl GlobalStep {
+    /// Return a new `GlobalStep` that works along the Y axis.
     pub fn y(step: f32) -> Self {
         Self {
             axis: StepAxis::Y,
             step,
         }
     }
-}
 
-impl GlobalStep {
+    /// Return a new `GlobalStep` that works along the X axis.
     pub fn x(step: f32) -> Self {
         Self {
             axis: StepAxis::X,
@@ -85,6 +100,7 @@ impl GlobalStep {
     }
 }
 
+#[doc(hidden)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Aabb {
     status: Status,
@@ -116,6 +132,9 @@ impl Collider for Aabb {
     }
 }
 
+/// The shape of a rigid body.
+///
+/// Contains a rotation/translation offset and a size.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Shape {
     offset: Vec2,
@@ -123,11 +142,13 @@ pub struct Shape {
 }
 
 impl Shape {
+    /// Return a new `Shape` with a zero offset and a size.
     pub fn new(size: Size) -> Self {
         let offset = Vec2::zero();
         Self { offset, size }
     }
 
+    /// Return a new `Shape` with an offset and a size.
     pub fn with_offset(mut self, offset: Vec2) -> Self {
         self.offset = offset;
         self
@@ -172,31 +193,44 @@ impl Joint {
     }
 }
 
+#[doc(hidden)]
 #[derive(Default, Debug, Clone, Copy)]
 pub struct Solved {
     x: bool,
     y: bool,
 }
 
+/// The rigid body.
 #[derive(Debug, Clone, Copy)]
 pub struct RigidBody {
+    /// Current position of this rigid body.
     pub position: Vec2,
+    /// Current rotation of this rigid body.
+    ///
+    /// NOTE: collisions checks may or may not be broken if this is not a multiple of 90 degrees.
     pub rotation: f32,
+    /// Current linear velocity of this rigid body.
     pub velocity: Vec2,
     prev_velocity: Vec2,
+    /// The terminal velocity of a semikinematic body.
+    ///
+    /// Defaults to `f32::INFINITY`.
     pub terminal: Vec2,
     accumulator: Vec2,
     dynamic_acc: Vec2,
+    /// The status, i.e. static or semikinematic.
+    ///
+    /// Affects how forces and collisions affect this rigid body.
     pub status: Status,
     mass: f32,
     inv_mass: f32,
-    pub restitution: f32,
     active: bool,
     sensor: bool,
     solved: Solved,
 }
 
 impl RigidBody {
+    /// Returns a new `RigidBody` with just a mass and all other components set to their defaults.
     pub fn new(mass: Mass) -> Self {
         Self {
             position: Vec2::zero(),
@@ -209,93 +243,122 @@ impl RigidBody {
             status: Status::Semikinematic,
             mass: mass.scalar(),
             inv_mass: mass.inverse(),
-            restitution: 0.5,
             active: true,
             sensor: false,
             solved: Default::default(),
         }
     }
 
+    /// Returns a `RigidBody` identical to this one, but with the position set to a new one.
     pub fn with_position(mut self, position: Vec2) -> Self {
         self.position = position;
         self
     }
 
+    /// Returns a `RigidBody` identical to this one, but with the rotation set to a new one.
     pub fn with_rotation(mut self, rotation: f32) -> Self {
         self.rotation = rotation;
         self
     }
 
+    /// Returns a `RigidBody` identical to this one, but with the velocity set to a new one.
     pub fn with_velocity(mut self, velocity: Vec2) -> Self {
         self.velocity = velocity;
         self
     }
 
+    /// Returns a `RigidBody` identical to this one, but with the terminal velocity set to a new one.
     pub fn with_terminal(mut self, terminal: Vec2) -> Self {
         self.terminal = terminal;
         self
     }
 
+    /// Returns a `RigidBody` identical to this one, but with the acceleration set to a new one.
     pub fn with_acceleration(mut self, acceleration: Vec2) -> Self {
         self.accumulator = acceleration;
         self
     }
 
+    /// Returns a `RigidBody` identical to this one, but with the status set to a new one.
     pub fn with_status(mut self, status: Status) -> Self {
         self.status = status;
         self
     }
 
-    pub fn with_restitution(mut self, restitution: f32) -> Self {
-        self.restitution = restitution;
-        self
-    }
-
+    /// Returns a `RigidBody` identical to this one, but with the active flag set to a new one.
     pub fn with_active(mut self, active: bool) -> Self {
         self.active = active;
         self
     }
 
+    /// Returns a `RigidBody` identical to this one, but with the sensor flag set to a new one.
     pub fn with_sensor(mut self, sensor: bool) -> Self {
         self.sensor = sensor;
         self
     }
 
+    /// Applies an impulse to the `RigidBody`s velocity.
     pub fn apply_impulse(&mut self, impulse: Vec2) {
         self.velocity += impulse * self.inv_mass;
     }
 
+    /// Applies a force to the `RigidBody`s acceleration accumulator.
     pub fn apply_force(&mut self, force: Vec2) {
         self.accumulator += force * self.inv_mass;
     }
 }
 
+/// Represents a single active collision between this and another `RigidBody`.
 #[derive(Debug, Clone, Copy)]
 pub struct CollisionInfo {
+    /// The other entity.
     pub other: Entity,
+    /// The penetration, relative to the other entity.
     pub penetration: Vec2,
+    /// The normals, relative to the other entity.
+    ///
+    /// NOTE: This is not a normalized vector, both its components are always set to either -1 or 1.
     pub normals: Vec2,
 }
 
+/// Represents all active collisions of this `RigidBody`.
 #[derive(Default, Debug, Clone)]
 pub struct Collisions {
+    /// Active collisions on the X axis.
     pub x: SmallVec<[CollisionInfo; 16]>,
+    /// Active collisions on the Y axis.
     pub y: SmallVec<[CollisionInfo; 16]>,
 }
 
+/// Checks whether a `Shape` is contained within another, per axis.
 #[derive(Debug, Clone, Copy)]
 pub struct Contained {
+    /// Is the `Shape` contained within the other along the X axis?
     pub x: bool,
+    /// Is the `Shape` contained within the other along the Y axis?
     pub y: bool,
 }
 
+/// The manifold, representing detailed data on a collision between two `RigidBody`s.
+///
+/// Usable as an event.
 #[derive(Debug, Clone, Copy)]
 pub struct Manifold {
+    /// The first entity.
     pub body1: Entity,
+    /// The second entity.
     pub body2: Entity,
+    /// The penetration, relative to the second entity.
     pub penetration: Vec2,
+    /// The normals, relative to the second entity.
+    ///
+    /// NOTE: This is not a normalized vector, both its components are always set to either -1 or 1.
     pub normals: Vec2,
+    /// The normal along which pushing should be performed.
+    ///
+    /// NOTE: This is always axis aligned.
     pub pnormal: Vec2,
+    /// Checks whether the entities are contained within the other, per axis.
     pub contained: [Contained; 2],
 }
 
@@ -859,6 +922,7 @@ fn physics_step_system(
     }
 }
 
+/// The plane on which to translate the 2d position into 3d coordinates.
 #[derive(Debug, Clone, Copy)]
 pub enum TranslationMode {
     AxesXY,
@@ -872,6 +936,7 @@ impl Default for TranslationMode {
     }
 }
 
+/// The axis on which to rotate the 2d rotation into a 3d quaternion.
 #[derive(Debug, Clone, Copy)]
 pub enum RotationMode {
     AxisX,

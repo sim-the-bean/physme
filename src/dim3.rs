@@ -1,3 +1,7 @@
+//! This module provides the primitives and systems for 3d physics simulation.
+//!
+//! For examples, see the root of the crate.
+
 use std::cmp::Ordering;
 use std::mem;
 
@@ -9,9 +13,11 @@ use smallvec::SmallVec;
 use crate::broad::{self, BoundingBox, Collider};
 use crate::common::*;
 
+/// This is what you want to add to your `App` if you want to run 3d physics simulation.
 pub struct Physics3dPlugin;
 
 pub mod stage {
+    #[doc(hidden)]
     pub use bevy::prelude::stage::*;
 
     pub const PHYSICS_STEP: &str = "physics_step_3d";
@@ -43,12 +49,15 @@ impl Plugin for Physics3dPlugin {
 
 pub type BroadPhase = broad::BroadPhase<Aabb>;
 
+/// The global gravity that affects every `RigidBody` with the `Semikinematic` status.
 #[derive(Default, Debug, Clone, Copy, PartialEq)]
 pub struct GlobalGravity(pub Vec3);
 
+/// The global step value, affects all semikinematic bodies.
 #[derive(Default, Debug, Clone, Copy, PartialEq)]
 pub struct GlobalStep(pub f32);
 
+#[doc(hidden)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Aabb {
     status: Status,
@@ -80,6 +89,7 @@ impl Collider for Aabb {
     }
 }
 
+/// The three dimensional size of a `Shape`
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Size3 {
     pub width: f32,
@@ -88,6 +98,7 @@ pub struct Size3 {
 }
 
 impl Size3 {
+    /// Returns a new 3d size.
     pub fn new(width: f32, height: f32, depth: f32) -> Self {
         Self {
             width,
@@ -97,6 +108,9 @@ impl Size3 {
     }
 }
 
+/// The shape of a rigid body.
+///
+/// Contains a rotation/translation offset and a size.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Shape {
     offset: Vec3,
@@ -104,11 +118,13 @@ pub struct Shape {
 }
 
 impl Shape {
+    /// Return a new `Shape` with a zero offset and a size.
     pub fn new(size: Size3) -> Self {
         let offset = Vec3::zero();
         Self { offset, size }
     }
 
+    /// Return a new `Shape` with an offset and a size.
     pub fn with_offset(mut self, offset: Vec3) -> Self {
         self.offset = offset;
         self
@@ -154,6 +170,7 @@ impl Joint {
     }
 }
 
+#[doc(hidden)]
 #[derive(Default, Debug, Clone, Copy)]
 pub struct Solved {
     x: bool,
@@ -161,25 +178,37 @@ pub struct Solved {
     z: bool,
 }
 
+/// The rigid body.
 #[derive(Debug, Clone, Copy)]
 pub struct RigidBody {
+    /// Current position of this rigid body.
     pub position: Vec3,
+    /// Current rotation of this rigid body.
+    ///
+    /// NOTE: collisions checks may or may not be broken if this is not a multiple of 90 degrees.
     pub rotation: Quat,
+    /// Current linear velocity of this rigid body.
     pub velocity: Vec3,
     prev_velocity: Vec3,
+    /// The terminal velocity of a semikinematic body.
+    ///
+    /// Defaults to `f32::INFINITY`.
     pub terminal: Vec3,
     accumulator: Vec3,
     dynamic_acc: Vec3,
+    /// The status, i.e. static or semikinematic.
+    ///
+    /// Affects how forces and collisions affect this rigid body.
     pub status: Status,
     mass: f32,
     inv_mass: f32,
-    pub restitution: f32,
     active: bool,
     sensor: bool,
     solved: Solved,
 }
 
 impl RigidBody {
+    /// Returns a new `RigidBody` with just a mass and all other components set to their defaults.
     pub fn new(mass: Mass) -> Self {
         Self {
             position: Vec3::zero(),
@@ -192,95 +221,126 @@ impl RigidBody {
             status: Status::Semikinematic,
             mass: mass.scalar(),
             inv_mass: mass.inverse(),
-            restitution: 0.5,
             active: true,
             sensor: false,
             solved: Default::default(),
         }
     }
 
+    /// Returns a `RigidBody` identical to this one, but with the position set to a new one.
     pub fn with_position(mut self, position: Vec3) -> Self {
         self.position = position;
         self
     }
 
+    /// Returns a `RigidBody` identical to this one, but with the rotation set to a new one.
     pub fn with_rotation(mut self, rotation: Quat) -> Self {
         self.rotation = rotation;
         self
     }
 
+    /// Returns a `RigidBody` identical to this one, but with the velocity set to a new one.
     pub fn with_velocity(mut self, velocity: Vec3) -> Self {
         self.velocity = velocity;
         self
     }
 
+    /// Returns a `RigidBody` identical to this one, but with the terminal velocity set to a new one.
     pub fn with_terminal(mut self, terminal: Vec3) -> Self {
         self.terminal = terminal;
         self
     }
 
+    /// Returns a `RigidBody` identical to this one, but with the acceleration set to a new one.
     pub fn with_acceleration(mut self, acceleration: Vec3) -> Self {
         self.accumulator = acceleration;
         self
     }
 
+    /// Returns a `RigidBody` identical to this one, but with the status set to a new one.
     pub fn with_status(mut self, status: Status) -> Self {
         self.status = status;
         self
     }
 
-    pub fn with_restitution(mut self, restitution: f32) -> Self {
-        self.restitution = restitution;
-        self
-    }
-
+    /// Returns a `RigidBody` identical to this one, but with the active flag set to a new one.
     pub fn with_active(mut self, active: bool) -> Self {
         self.active = active;
         self
     }
 
+    /// Returns a `RigidBody` identical to this one, but with the sensor flag set to a new one.
     pub fn with_sensor(mut self, sensor: bool) -> Self {
         self.sensor = sensor;
         self
     }
 
+    /// Applies an impulse to the `RigidBody`s velocity.
     pub fn apply_impulse(&mut self, impulse: Vec3) {
         self.velocity += impulse * self.inv_mass;
     }
 
+    /// Applies a force to the `RigidBody`s acceleration accumulator.
     pub fn apply_force(&mut self, force: Vec3) {
         self.accumulator += force * self.inv_mass;
     }
 }
 
+/// Represents a single active collision between this and another `RigidBody`.
 #[derive(Debug, Clone, Copy)]
 pub struct CollisionInfo {
+    /// The other entity.
     pub other: Entity,
+    /// The penetration, relative to the other entity.
     pub penetration: Vec3,
+    /// The normals, relative to the other entity.
+    ///
+    /// NOTE: This is not a normalized vector, all three its components are always set to either -1 or 1.
     pub normals: Vec3,
 }
 
+/// Represents all active collisions of this `RigidBody`.
 #[derive(Default, Debug, Clone)]
 pub struct Collisions {
+    /// Active collisions on the X axis.
     pub x: SmallVec<[CollisionInfo; 16]>,
+    /// Active collisions on the Y axis.
     pub y: SmallVec<[CollisionInfo; 16]>,
+    /// Active collisions on the Z axis.
     pub z: SmallVec<[CollisionInfo; 16]>,
 }
 
+/// Checks whether a `Shape` is contained within another, per axis.
 #[derive(Debug, Clone, Copy)]
 pub struct Contained {
+    /// Is the `Shape` contained within the other along the X axis?
     pub x: bool,
+    /// Is the `Shape` contained within the other along the Y axis?
     pub y: bool,
+    /// Is the `Shape` contained within the other along the Z axis?
     pub z: bool,
 }
 
+/// The manifold, representing detailed data on a collision between two `RigidBody`s.
+///
+/// Usable as an event.
 #[derive(Debug, Clone, Copy)]
 pub struct Manifold {
+    /// The first entity.
     pub body1: Entity,
+    /// The second entity.
     pub body2: Entity,
+    /// The penetration, relative to the second entity.
     pub penetration: Vec3,
+    /// The normals, relative to the second entity.
+    ///
+    /// NOTE: This is not a normalized vector, both its components are always set to either -1 or 1.
     pub normals: Vec3,
+    /// The normal along which pushing should be performed.
+    ///
+    /// NOTE: This is always axis aligned.
     pub pnormal: Vec3,
+    /// Checks whether the entities are contained within the other, per axis.
     pub contained: [Contained; 2],
 }
 
