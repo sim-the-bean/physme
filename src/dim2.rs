@@ -7,7 +7,7 @@ use std::mem;
 
 use bevy::math::*;
 use bevy::prelude::*;
-use hashbrown::{HashMap, HashSet};
+use hashbrown::HashSet;
 use smallvec::SmallVec;
 
 use crate::broad::{self, BoundingBox, Collider};
@@ -33,7 +33,9 @@ impl Plugin for Physics2dPlugin {
             .add_resource(GlobalGravity::default())
             .add_resource(TranslationMode::default())
             .add_resource(RotationMode::default())
-            .add_resource(StepAxis::default())
+            .add_resource(GlobalStep::default())
+            .add_resource(GlobalUp::default())
+            .add_resource(AngularTolerance::default())
             .add_event::<Manifold>()
             .add_stage_before(stage::UPDATE, stage::PHYSICS_STEP)
             .add_stage_after(stage::PHYSICS_STEP, stage::BROAD_PHASE)
@@ -50,81 +52,137 @@ impl Plugin for Physics2dPlugin {
     }
 }
 
-pub type BroadPhase = broad::BroadPhase<Aabb>;
+pub type BroadPhase = broad::BroadPhase<Obb>;
 
 /// The global gravity that affects every `RigidBody` with the `Semikinematic` status.
 #[derive(Default, Debug, Clone, Copy, PartialEq)]
 pub struct GlobalGravity(pub Vec2);
 
-/// The axis on which stepping should be performed.
-///
-/// NOTE: The X axis is not implemented yet and will quietly do nothing.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StepAxis {
-    /// Perform steps along the X axis.
-    X,
-    /// Perform steps along the Y axis.
-    Y,
-}
-
-impl Default for StepAxis {
-    fn default() -> Self {
-        Self::Y
-    }
-}
-
 /// The global step value, affects all semikinematic bodies.
 #[derive(Default, Debug, Clone, Copy, PartialEq)]
-pub struct GlobalStep {
-    /// The axis to stap along.
-    pub axis: StepAxis,
-    /// The maximum height at which to allow stepping.
-    pub step: f32,
-}
+pub struct GlobalStep(pub f32);
 
-impl GlobalStep {
-    /// Return a new `GlobalStep` that works along the Y axis.
-    pub fn y(step: f32) -> Self {
-        Self {
-            axis: StepAxis::Y,
-            step,
-        }
-    }
+/// The global up vector, affects all semikinematic bodies.
+#[derive(Default, Debug, Clone, Copy, PartialEq)]
+pub struct GlobalUp(pub Vec2);
 
-    /// Return a new `GlobalStep` that works along the X axis.
-    pub fn x(step: f32) -> Self {
-        Self {
-            axis: StepAxis::X,
-            step,
-        }
+/// The global angular tolerance in radians, affects all semikinematic bodies.
+///
+/// This is used for step calculation and for push dynamics.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct AngularTolerance(pub f32);
+
+impl Default for AngularTolerance {
+    fn default() -> Self {
+        Self(30.0_f32.to_radians())
     }
 }
 
 #[doc(hidden)]
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Aabb {
+pub struct Obb {
     status: Status,
     body: Entity,
-    min: Vec2,
-    max: Vec2,
+    position: Vec2,
+    rotation: Mat2,
+    vertices: [Vec2; 4],
+    normals: [Vec2; 4],
 }
 
-impl Aabb {
-    fn new(status: Status, body: Entity, min: Vec2, max: Vec2) -> Self {
+impl Obb {
+    fn new(
+        status: Status,
+        body: Entity,
+        rotation: Mat2,
+        position: Vec2,
+        v0: Vec2,
+        v1: Vec2,
+        v2: Vec2,
+        v3: Vec2,
+        n0: Vec2,
+        n1: Vec2,
+    ) -> Self {
         Self {
             status,
             body,
-            min,
-            max,
+            rotation,
+            position,
+            vertices: [v0, v1, v2, v3],
+            normals: [-n1, n0, n1, -n0],
         }
+    }
+
+    pub fn v0(&self) -> Vec2 {
+        self.rotation * self.vertices[0] + self.position
+    }
+
+    pub fn v1(&self) -> Vec2 {
+        self.rotation * self.vertices[1] + self.position
+    }
+
+    pub fn v2(&self) -> Vec2 {
+        self.rotation * self.vertices[2] + self.position
+    }
+
+    pub fn v3(&self) -> Vec2 {
+        self.rotation * self.vertices[3] + self.position
+    }
+
+    pub fn min(&self) -> Vec2 {
+        let min_x = self
+            .v0()
+            .x()
+            .min(self.v1().x())
+            .min(self.v2().x())
+            .min(self.v3().x());
+        let min_y = self
+            .v0()
+            .y()
+            .min(self.v1().y())
+            .min(self.v2().y())
+            .min(self.v3().y());
+        Vec2::new(min_x, min_y)
+    }
+
+    pub fn max(&self) -> Vec2 {
+        let max_x = self
+            .v0()
+            .x()
+            .max(self.v1().x())
+            .max(self.v2().x())
+            .max(self.v3().x());
+        let max_y = self
+            .v0()
+            .y()
+            .max(self.v1().y())
+            .max(self.v2().y())
+            .max(self.v3().y());
+        Vec2::new(max_x, max_y)
+    }
+
+    pub fn get_support(&self, dir: Vec2) -> Vec2 {
+        let mut best_projection = f32::MIN;
+        let mut best_vertex = Vec2::zero();
+
+        for i in 0..4 {
+            let v = self.vertices[i];
+            let proj = v.dot(dir);
+
+            if proj > best_projection {
+                best_vertex = v;
+                best_projection = proj;
+            }
+        }
+
+        best_vertex
     }
 }
 
-impl Collider for Aabb {
+impl Collider for Obb {
     type Point = Vec2;
 
     fn bounding_box(&self) -> BoundingBox<Self::Point> {
-        BoundingBox::new(self.min, self.max)
+        BoundingBox::new(self.min(), self.max())
     }
 
     fn status(&self) -> Status {
@@ -197,8 +255,8 @@ impl Joint {
 #[doc(hidden)]
 #[derive(Default, Debug, Clone, Copy)]
 pub struct Solved {
-    x: bool,
-    y: bool,
+    fst: bool,
+    snd: bool,
 }
 
 /// The rigid body.
@@ -206,6 +264,7 @@ pub struct Solved {
 pub struct RigidBody {
     /// Current position of this rigid body.
     pub position: Vec2,
+    lowest_position: Vec2,
     /// Current rotation of this rigid body.
     ///
     /// NOTE: collisions checks may or may not be broken if this is not a multiple of 90 degrees.
@@ -235,6 +294,7 @@ impl RigidBody {
     pub fn new(mass: Mass) -> Self {
         Self {
             position: Vec2::zero(),
+            lowest_position: Vec2::zero(),
             rotation: 0.0,
             velocity: Vec2::zero(),
             prev_velocity: Vec2::zero(),
@@ -345,58 +405,21 @@ impl RigidBody {
     }
 }
 
-/// Represents a single active collision between this and another `RigidBody`.
-#[derive(Debug, Clone, Copy)]
-pub struct CollisionInfo {
-    /// The other entity.
-    pub other: Entity,
-    /// The penetration, relative to the other entity.
-    pub penetration: Vec2,
-    /// The normals, relative to the other entity.
-    ///
-    /// NOTE: This is not a normalized vector, both its components are always set to either -1 or 1.
-    pub normals: Vec2,
-}
-
-/// Represents all active collisions of this `RigidBody`.
-#[derive(Default, Debug, Clone)]
-pub struct Collisions {
-    /// Active collisions on the X axis.
-    pub x: SmallVec<[CollisionInfo; 16]>,
-    /// Active collisions on the Y axis.
-    pub y: SmallVec<[CollisionInfo; 16]>,
-}
-
-/// Checks whether a `Shape` is contained within another, per axis.
-#[derive(Debug, Clone, Copy)]
-pub struct Contained {
-    /// Is the `Shape` contained within the other along the X axis?
-    pub x: bool,
-    /// Is the `Shape` contained within the other along the Y axis?
-    pub y: bool,
-}
-
 /// The manifold, representing detailed data on a collision between two `RigidBody`s.
 ///
 /// Usable as an event.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct Manifold {
     /// The first entity.
     pub body1: Entity,
     /// The second entity.
     pub body2: Entity,
     /// The penetration, relative to the second entity.
-    pub penetration: Vec2,
-    /// The normals, relative to the second entity.
-    ///
-    /// NOTE: This is not a normalized vector, both its components are always set to either -1 or 1.
-    pub normals: Vec2,
-    /// The normal along which pushing should be performed.
-    ///
-    /// NOTE: This is always axis aligned.
-    pub pnormal: Vec2,
-    /// Checks whether the entities are contained within the other, per axis.
-    pub contained: [Contained; 2],
+    pub penetration: f32,
+    /// The normal, relative to the second entity.
+    pub normal: Vec2,
+    /// The contact points of this manifold.
+    pub contacts: SmallVec<[Vec2; 4]>,
 }
 
 pub fn broad_phase_system(
@@ -408,18 +431,26 @@ pub fn broad_phase_system(
     for (entity, body, children) in &mut query.iter() {
         for &e in children.iter() {
             if let Ok(shape) = query2.get::<Shape>(e) {
-                let mut min = shape.offset;
-                let mut max = shape.offset + Vec2::new(shape.size.width, shape.size.height);
+                let v0 = shape.offset;
+                let v1 = shape.offset + Vec2::new(shape.size.width, 0.0);
+                let v2 = shape.offset + Vec2::new(shape.size.width, shape.size.height);
+                let v3 = shape.offset + Vec2::new(0.0, shape.size.height);
                 let rotation = Mat2::from_angle(body.rotation);
-                min = body.position + rotation * min;
-                max = body.position + rotation * max;
-                let min_x = min.x().min(max.x());
-                let min_y = min.y().min(max.y());
-                let max_x = min.x().max(max.x());
-                let max_y = min.y().max(max.y());
-                let min = Vec2::new(min_x, min_y);
-                let max = Vec2::new(max_x, max_y);
-                let collider = Aabb::new(body.status, entity, min, max);
+                let position = body.position;
+                let n0 = Vec2::new(1.0, 0.0);
+                let n1 = Vec2::new(0.0, 1.0);
+                let collider = Obb::new(
+                    body.status,
+                    entity,
+                    rotation,
+                    position,
+                    v0,
+                    v1,
+                    v2,
+                    v3,
+                    n0,
+                    n1,
+                );
                 colliders.push(collider);
             }
         }
@@ -441,6 +472,95 @@ impl NarrowPhase {
     }
 }
 
+fn bias_greater_than(a: f32, b: f32) -> bool {
+    const BIAS_RELATIVE: f32 = 0.95;
+    const BIAS_ABSOLUTE: f32 = 0.01;
+    a >= b * BIAS_RELATIVE + a * BIAS_ABSOLUTE
+}
+
+fn find_axis_of_least_penetration(a: &Obb, b: &Obb) -> (f32, usize) {
+    let mut best_distance = f32::MIN;
+    let mut best_index = 0;
+
+    for i in 0..4 {
+        let n = a.normals[i];
+        let nw = a.rotation * n;
+
+        let brt = b.rotation.transpose();
+        let n = brt * nw;
+
+        let s = b.get_support(-n);
+
+        let mut v = a.vertices[i];
+        v = a.rotation * v + a.position;
+        v -= b.position;
+        v = brt * v;
+
+        let d = n.dot(s - v);
+
+        if d > best_distance {
+            best_distance = d;
+            best_index = i;
+        }
+    }
+
+    (best_distance, best_index)
+}
+
+fn find_incident_face(ref_poly: &Obb, inc_poly: &Obb, idx: usize) -> [Vec2; 2] {
+    let mut ref_normal = ref_poly.normals[idx];
+
+    ref_normal = ref_poly.rotation * ref_normal;
+    ref_normal = inc_poly.rotation.transpose() * ref_normal;
+
+    let mut incident_face = 0;
+    let mut min_dot = f32::MAX;
+
+    for i in 0..4 {
+        let dot = ref_normal.dot(inc_poly.normals[i]);
+        if dot < min_dot {
+            min_dot = dot;
+            incident_face = i;
+        }
+    }
+
+    let v0 = inc_poly.rotation * inc_poly.vertices[incident_face] + inc_poly.position;
+    incident_face = (incident_face + 1) & 0x3;
+    let v1 = inc_poly.rotation * inc_poly.vertices[incident_face] + inc_poly.position;
+    [v0, v1]
+}
+
+fn clip(n: Vec2, c: f32, face: &mut [Vec2]) -> usize {
+    let mut sp = 0;
+    let mut out = [face[0], face[1]];
+
+    let d1 = n.dot(face[0]) - c;
+    let d2 = n.dot(face[1]) - c;
+
+    if d1 <= 0.0 {
+        out[sp] = face[0];
+        sp += 1;
+    }
+
+    if d2 <= 0.0 {
+        out[sp] = face[1];
+        sp += 1;
+    }
+
+    if d1 * d2 < 0.0 {
+        let alpha = d1 / (d1 - d2);
+        out[sp] = face[0] + alpha * (face[1] - face[0]);
+        sp += 1;
+    }
+
+    face[0] = out[0];
+    face[1] = out[1];
+
+    debug_assert_ne!(sp, 3);
+
+    sp
+}
+
 fn narrow_phase_system(
     mut state: Local<NarrowPhase>,
     mut manifolds: ResMut<Events<Manifold>>,
@@ -458,67 +578,91 @@ fn narrow_phase_system(
         }
         state.set.insert([collider1.body, collider2.body]);
 
-        let b_pos = (collider2.min + collider2.max) * 0.5;
-        let a_pos = (collider1.min + collider1.max) * 0.5;
-        let d = b_pos - a_pos;
-
-        let a_extent = (collider1.max.x() - collider1.min.x()) * 0.5;
-        let b_extent = (collider2.max.x() - collider2.min.x()) * 0.5;
-        let x_overlap = a_extent + b_extent - d.x().abs();
-
-        if x_overlap > 0.0 {
-            let a_x_contained =
-                collider1.min.x() >= collider2.min.x() && collider1.max.x() <= collider2.max.x();
-            let b_x_contained =
-                collider2.min.x() >= collider1.min.x() && collider2.max.x() <= collider1.max.x();
-
-            let a_extent = (collider1.max.y() - collider1.min.y()) * 0.5;
-            let b_extent = (collider2.max.y() - collider2.min.y()) * 0.5;
-            let y_overlap = a_extent + b_extent - d.y().abs();
-
-            if y_overlap > 0.0 {
-                let a_y_contained = collider1.min.y() >= collider2.min.y()
-                    && collider1.max.y() <= collider2.max.y();
-                let b_y_contained = collider2.min.y() >= collider1.min.y()
-                    && collider2.max.y() <= collider1.max.y();
-
-                let pn_x1 = (collider2.max.x() - collider1.min.x()).abs();
-                let pn_x2 = (collider2.min.x() - collider1.max.x()).abs();
-                let pn_y1 = (collider2.max.y() - collider1.min.y()).abs();
-                let pn_y2 = (collider2.min.y() - collider1.max.y()).abs();
-                let min = pn_x1.min(pn_x2).min(pn_y1).min(pn_y2);
-                let pnormal = if min == pn_x1 {
-                    Vec2::new(1.0, 0.0)
-                } else if min == pn_x2 {
-                    Vec2::new(-1.0, 0.0)
-                } else if min == pn_y1 {
-                    Vec2::new(0.0, 1.0)
-                } else {
-                    Vec2::new(0.0, -1.0)
-                };
-
-                let n_x = if d.x() < 0.0 { -1.0 } else { 1.0 };
-                let n_y = if d.y() < 0.0 { -1.0 } else { 1.0 };
-                let manifold = Manifold {
-                    body1: collider1.body,
-                    body2: collider2.body,
-                    penetration: Vec2::new(x_overlap, y_overlap),
-                    normals: Vec2::new(n_x, n_y),
-                    pnormal,
-                    contained: [
-                        Contained {
-                            x: a_x_contained,
-                            y: a_y_contained,
-                        },
-                        Contained {
-                            x: b_x_contained,
-                            y: b_y_contained,
-                        },
-                    ],
-                };
-                manifolds.send(manifold);
-            }
+        let (penetration_a, face_a) = find_axis_of_least_penetration(&collider1, &collider2);
+        if penetration_a >= 0.0 {
+            continue;
         }
+
+        let (penetration_b, face_b) = find_axis_of_least_penetration(&collider2, &collider1);
+        if penetration_b >= 0.0 {
+            continue;
+        }
+
+        let mut ref_index;
+        let flip;
+        let ref_poly;
+        let inc_poly;
+
+        if bias_greater_than(penetration_a, penetration_b) {
+            ref_poly = &collider1;
+            inc_poly = &collider2;
+            ref_index = face_a;
+            flip = false;
+        } else {
+            ref_poly = &collider2;
+            inc_poly = &collider1;
+            ref_index = face_b;
+            flip = true;
+        }
+
+        let mut incident_face = find_incident_face(ref_poly, inc_poly, ref_index);
+
+        let mut v1 = ref_poly.vertices[ref_index];
+        ref_index = (ref_index + 1) & 0x3;
+        let mut v2 = ref_poly.vertices[ref_index];
+
+        v1 = ref_poly.rotation * v1 + ref_poly.position;
+        v2 = ref_poly.rotation * v2 + ref_poly.position;
+
+        let side_plane_normal = (v2 - v1).normalize();
+
+        let ref_face_normal = Vec2::new(side_plane_normal.y(), -side_plane_normal.x());
+
+        let refc = ref_face_normal.dot(v1);
+        let negside = -side_plane_normal.dot(v1);
+        let posside = side_plane_normal.dot(v2);
+
+        if clip(-side_plane_normal, negside, &mut incident_face) < 2 {
+            continue;
+        }
+
+        if clip(side_plane_normal, posside, &mut incident_face) < 2 {
+            continue;
+        }
+
+        let normal = if flip {
+            -ref_face_normal
+        } else {
+            ref_face_normal
+        };
+        let mut penetration = 0.0;
+
+        let mut contacts = SmallVec::new();
+
+        let mut cp = 0;
+        let sep = ref_face_normal.dot(incident_face[0]) - refc;
+        if sep <= 0.0 {
+            contacts.push(incident_face[0]);
+            penetration = -sep;
+            cp += 1;
+        }
+
+        let sep = ref_face_normal.dot(incident_face[1]) - refc;
+        if sep <= 0.0 {
+            contacts.push(incident_face[1]);
+            penetration += -sep;
+            cp += 1;
+            penetration /= cp as f32;
+        }
+
+        let manifold = Manifold {
+            body1: collider1.body,
+            body2: collider2.body,
+            penetration,
+            normal,
+            contacts,
+        };
+        manifolds.send(manifold);
     }
 }
 
@@ -536,16 +680,15 @@ impl Solver {
 }
 
 fn solve_system(
-    mut commands: Commands,
     mut solver: Local<Solver>,
     time: Res<Time>,
     manifolds: Res<Events<Manifold>>,
     step: Res<GlobalStep>,
-    mut query: Query<(Mut<RigidBody>, Option<Mut<Collisions>>)>,
+    up: Res<GlobalUp>,
+    ang_tol: Res<AngularTolerance>,
+    query: Query<Mut<RigidBody>>,
 ) {
     let delta_time = time.delta.as_secs_f32();
-
-    let mut transaction: HashMap<Entity, Collisions> = HashMap::new();
 
     for manifold in solver.reader.iter(&manifolds) {
         let a = query.get::<RigidBody>(manifold.body1).unwrap();
@@ -555,325 +698,129 @@ fn solve_system(
             continue;
         }
 
-        let mut a_maybe_step = None;
-        let mut b_maybe_step = None;
-        let dont_x = a.status == Status::Semikinematic
-            && b.status == Status::Semikinematic
-            && manifold.pnormal.x() == 0.0;
-        let mut pushed_x = false;
-
-        if !dont_x {
-            let dynamics = if a.status == Status::Semikinematic
-                && b.status == Status::Semikinematic
-                && manifold.pnormal.x() != 0.0
-            {
+        let dynamics = if a.status == Status::Semikinematic && b.status == Status::Semikinematic {
+            let push_angle = up.0.abs().dot(manifold.normal.abs()).acos();
+            if push_angle > ang_tol.0 {
                 let sum_recip = (a.mass + b.mass).recip();
-                let br = b.velocity.x() * b.mass;
-                let ar = a.velocity.x() * a.mass;
+                let br = b.velocity * b.mass;
+                let ar = a.velocity * a.mass;
                 let rv = br * sum_recip - ar * sum_recip;
 
-                let impulse = -rv;
+                let impulse = -rv * manifold.normal.abs();
 
-                let a = a.velocity.x() - impulse;
-                let b = b.velocity.x() + impulse;
+                let a = a.velocity - impulse;
+                let b = b.velocity + impulse;
                 Some((a, b))
             } else {
                 None
-            };
-            mem::drop(a);
-            mem::drop(b);
-
-            pushed_x = dynamics.is_some();
-
-            let mut a = query.get_mut::<RigidBody>(manifold.body1).unwrap();
-            match a.status {
-                Status::Static => {}
-                Status::Semikinematic => {
-                    if let Some((impulse, _)) = dynamics {
-                        *a.dynamic_acc.x_mut() += impulse;
-
-                        if !manifold.contained[0].x {
-                            let d = -manifold.normals.x() * manifold.penetration.x();
-                            let v = a.velocity.x() * delta_time;
-                            if v.signum() == d.signum() {
-                                // nothing
-                            } else {
-                                a.solved.x = true;
-                                *a.velocity.x_mut() = 0.0;
-                                *a.position.x_mut() += d;
-                            }
-                        }
-                    } else {
-                        let mut solve = true;
-                        if let Ok(collisions) = query.get::<Collisions>(manifold.body1) {
-                            for info in &collisions.x {
-                                if info.other == manifold.body2 {
-                                    solve = false;
-                                    break;
-                                }
-                            }
-                        }
-                        if solve {
-                            if !manifold.contained[0].x {
-                                let d = -manifold.normals.x() * manifold.penetration.x();
-                                let v = a.velocity.x() * delta_time;
-                                if v.signum() == d.signum() {
-                                    // nothing
-                                } else {
-                                    if step.axis == StepAxis::Y {
-                                        a_maybe_step = Some((-d, a.velocity.x()));
-                                    }
-                                    a.solved.x = true;
-                                    *a.velocity.x_mut() = 0.0;
-                                    *a.position.x_mut() += d;
-                                }
-                            }
-                        }
-                    }
-                }
             }
-            mem::drop(a);
-
-            let mut b = query.get_mut::<RigidBody>(manifold.body2).unwrap();
-            match b.status {
-                Status::Static => {}
-                Status::Semikinematic => {
-                    if let Some((_, impulse)) = dynamics {
-                        *b.dynamic_acc.x_mut() += impulse;
-
-                        if !manifold.contained[1].x {
-                            let d = manifold.normals.x() * manifold.penetration.x();
-                            let v = b.velocity.x() * delta_time;
-                            if v.signum() == d.signum() {
-                                // nothing
-                            } else {
-                                b.solved.x = true;
-                                *b.velocity.x_mut() = 0.0;
-                                *b.position.x_mut() += d;
-                            }
-                        }
-                    } else {
-                        let mut solve = true;
-                        if let Ok(collisions) = query.get::<Collisions>(manifold.body2) {
-                            for info in &collisions.x {
-                                if info.other == manifold.body1 {
-                                    solve = false;
-                                    break;
-                                }
-                            }
-                        }
-                        if solve {
-                            if !manifold.contained[1].x {
-                                let d = manifold.normals.x() * manifold.penetration.x();
-                                let v = b.velocity.x() * delta_time;
-                                if v.signum() == d.signum() {
-                                    // nothing
-                                } else {
-                                    if step.axis == StepAxis::Y {
-                                        b_maybe_step = Some((-d, b.velocity.x()));
-                                    }
-                                    b.solved.x = true;
-                                    *b.velocity.x_mut() = 0.0;
-                                    *b.position.x_mut() += d;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            mem::drop(b);
         } else {
-            mem::drop(a);
-            mem::drop(b);
-        }
+            None
+        };
+        mem::drop(a);
+        mem::drop(b);
 
-        let a = query.get::<RigidBody>(manifold.body1).unwrap();
-        let b = query.get::<RigidBody>(manifold.body2).unwrap();
+        let mut a = query.get_mut::<RigidBody>(manifold.body1).unwrap();
+        match a.status {
+            Status::Static => {}
+            Status::Semikinematic => {
+                if let Some((impulse, _)) = dynamics {
+                    a.dynamic_acc += impulse;
 
-        if !pushed_x {
-            let dynamics = a.status == Status::Semikinematic
-                && b.status == Status::Semikinematic
-                && manifold.pnormal.y() != 0.0;
-            mem::drop(a);
-            mem::drop(b);
-
-            let mut a = query.get_mut::<RigidBody>(manifold.body1).unwrap();
-            match a.status {
-                Status::Static => {}
-                Status::Semikinematic => {
-                    if dynamics {
-                        if !manifold.contained[0].y {
-                            let d = -manifold.normals.y() * manifold.penetration.y();
-                            let v = a.velocity.y();
-                            if v.signum() == d.signum() {
-                                // nothing
-                            } else {
-                                a.solved.y = true;
-                                *a.velocity.y_mut() = 0.0;
-                                *a.position.y_mut() += d;
-                            }
-                        }
+                    let d = -manifold.normal * manifold.penetration;
+                    let v = a.velocity * delta_time;
+                    if v.sign() == d.sign() {
+                        // nothing
                     } else {
-                        let mut solve = true;
-                        if let Ok(collisions) = query.get::<Collisions>(manifold.body1) {
-                            for info in &collisions.y {
-                                if info.other == manifold.body2 {
+                        a.velocity *=
+                            Vec2::new(manifold.normal.y().abs(), manifold.normal.x().abs());
+                        a.position += d;
+                    }
+                } else {
+                    let mut solve = true;
+                    let step_angle = up.0.abs().dot(manifold.normal.abs()).acos();
+                    if step_angle > ang_tol.0 {
+                        let up_vector = up.0;
+                        if up_vector.length_squared() != 0.0 {
+                            for &point in &manifold.contacts {
+                                let d = point - a.lowest_position;
+                                let s = d.dot(up_vector);
+                                if s < step.0 {
+                                    let diff = a.position - a.lowest_position;
+                                    a.lowest_position += up_vector * s;
+                                    a.position = a.lowest_position + diff;
                                     solve = false;
-                                    break;
-                                }
-                            }
-                        }
-                        if solve {
-                            if !manifold.contained[0].y {
-                                let d = -manifold.normals.y() * manifold.penetration.y();
-                                if a_maybe_step.is_some()
-                                    && step.axis == StepAxis::Y
-                                    && d > 0.0
-                                    && d <= step.step
-                                {
-                                    let (dx, vx) = a_maybe_step.unwrap();
-                                    *a.position.y_mut() += d;
-                                    *a.position.x_mut() += dx;
-                                    *a.velocity.x_mut() = vx;
-                                    a.solved.x = false;
-                                    a.solved.y = true;
-                                } else {
-                                    let v = a.velocity.y();
-                                    if v.signum() == d.signum() {
-                                        // nothing
-                                    } else {
-                                        a.solved.y = true;
-                                        *a.velocity.y_mut() = 0.0;
-                                        *a.position.y_mut() += d;
-                                    }
                                 }
                             }
                         }
                     }
-                }
-            }
-            mem::drop(a);
 
-            let mut b = query.get_mut::<RigidBody>(manifold.body2).unwrap();
-            match b.status {
-                Status::Static => {}
-                Status::Semikinematic => {
-                    if dynamics {
-                        if !manifold.contained[1].y {
-                            let d = manifold.normals.y() * manifold.penetration.y();
-                            let v = b.velocity.y();
-                            if v.signum() == d.signum() {
-                                // nothing
-                            } else {
-                                b.solved.y = true;
-                                *b.velocity.y_mut() = 0.0;
-                                *b.position.y_mut() += d;
-                            }
-                        }
-                    } else {
-                        let mut solve = true;
-                        if let Ok(collisions) = query.get::<Collisions>(manifold.body2) {
-                            for info in &collisions.y {
-                                if info.other == manifold.body1 {
-                                    solve = false;
-                                    break;
-                                }
-                            }
-                        }
-                        if solve {
-                            if !manifold.contained[1].y {
-                                let d = manifold.normals.y() * manifold.penetration.y();
-                                if b_maybe_step.is_some()
-                                    && step.axis == StepAxis::Y
-                                    && d > 0.0
-                                    && d <= step.step
-                                {
-                                    let (dx, vx) = b_maybe_step.unwrap();
-                                    *b.position.y_mut() += d;
-                                    *b.position.x_mut() += dx;
-                                    *b.velocity.x_mut() = vx;
-                                    b.solved.x = false;
-                                    b.solved.y = true;
-                                } else {
-                                    let v = b.velocity.y();
-                                    if v.signum() == d.signum() {
-                                        // nothing
-                                    } else {
-                                        b.solved.y = true;
-                                        *b.velocity.y_mut() = 0.0;
-                                        *b.position.y_mut() += d;
-                                    }
-                                }
-                            }
+                    if solve {
+                        let d = -manifold.normal * manifold.penetration;
+                        let v = a.velocity * delta_time;
+                        if v.sign() == d.sign() {
+                            // nothing
+                        } else {
+                            a.velocity *=
+                                Vec2::new(manifold.normal.y().abs(), manifold.normal.x().abs());
+                            a.position += d;
                         }
                     }
                 }
             }
-            mem::drop(b);
         }
+        mem::drop(a);
 
-        let a = query.get::<RigidBody>(manifold.body1).unwrap();
-        let b = query.get::<RigidBody>(manifold.body2).unwrap();
+        let mut b = query.get_mut::<RigidBody>(manifold.body2).unwrap();
+        match b.status {
+            Status::Static => {}
+            Status::Semikinematic => {
+                if let Some((_, impulse)) = dynamics {
+                    b.dynamic_acc += impulse;
 
-        if !a.solved.x {
-            transaction
-                .entry(manifold.body1)
-                .or_default()
-                .x
-                .push(CollisionInfo {
-                    other: manifold.body1,
-                    penetration: manifold.penetration,
-                    normals: manifold.normals,
-                });
+                    let d = manifold.normal * manifold.penetration;
+                    let v = b.velocity * delta_time;
+                    if v.sign() == d.sign() {
+                        // nothing
+                    } else {
+                        b.velocity *=
+                            Vec2::new(manifold.normal.y().abs(), manifold.normal.x().abs());
+                        b.position += d;
+                    }
+                } else {
+                    let mut solve = true;
+                    let step_angle = up.0.abs().dot(manifold.normal.abs()).acos();
+                    if step_angle > ang_tol.0 {
+                        let up_vector = up.0;
+                        if up_vector.length_squared() != 0.0 {
+                            for &point in &manifold.contacts {
+                                let d = point - b.lowest_position;
+                                let s = d.dot(up_vector);
+                                if s < step.0 {
+                                    let diff = b.position - b.lowest_position;
+                                    b.lowest_position += up_vector * s;
+                                    b.position = b.lowest_position + diff;
+                                    solve = false;
+                                }
+                            }
+                        }
+                    }
+
+                    if solve {
+                        let d = manifold.normal * manifold.penetration;
+                        let v = b.velocity * delta_time;
+                        if v.sign() == d.sign() {
+                            // nothing
+                        } else {
+                            b.velocity *=
+                                Vec2::new(manifold.normal.y().abs(), manifold.normal.x().abs());
+                            b.position += d;
+                        }
+                    }
+                }
+            }
         }
-        if !a.solved.y {
-            transaction
-                .entry(manifold.body1)
-                .or_default()
-                .y
-                .push(CollisionInfo {
-                    other: manifold.body1,
-                    penetration: manifold.penetration,
-                    normals: manifold.normals,
-                });
-        }
-
-        if !b.solved.x {
-            transaction
-                .entry(manifold.body2)
-                .or_default()
-                .x
-                .push(CollisionInfo {
-                    other: manifold.body1,
-                    penetration: -manifold.penetration,
-                    normals: -manifold.normals,
-                });
-        }
-
-        if !b.solved.y {
-            transaction
-                .entry(manifold.body2)
-                .or_default()
-                .y
-                .push(CollisionInfo {
-                    other: manifold.body1,
-                    penetration: -manifold.penetration,
-                    normals: -manifold.normals,
-                });
-        }
-    }
-
-    for (mut body, collisions) in &mut query.iter() {
-        body.solved.x = false;
-        body.solved.y = false;
-        if let Some(mut collisions) = collisions {
-            collisions.x.clear();
-            collisions.y.clear();
-        }
-    }
-
-    for (e, info) in transaction {
-        commands.insert_one(e, info);
+        mem::drop(b);
     }
 }
 
@@ -900,7 +847,9 @@ fn physics_step_system(
     time: Res<Time>,
     friction: Res<GlobalFriction>,
     gravity: Res<GlobalGravity>,
-    mut query: Query<Mut<RigidBody>>,
+    up: Res<GlobalUp>,
+    mut query: Query<(Mut<RigidBody>, &Children)>,
+    shapes: Query<&Shape>,
 ) {
     if state.skip > 0 {
         state.skip -= 1;
@@ -909,7 +858,7 @@ fn physics_step_system(
 
     let delta_time = time.delta.as_secs_f32();
 
-    for mut body in &mut query.iter() {
+    for (mut body, children) in &mut query.iter() {
         if !body.active {
             continue;
         }
@@ -956,6 +905,37 @@ fn physics_step_system(
             Status::Static => {}
         }
         body.prev_velocity = body.velocity;
+
+        for &child in children.iter() {
+            if let Ok(shape) = shapes.get::<Shape>(child) {
+                let v0 = shape.offset;
+                let v1 = shape.offset + Vec2::new(shape.size.width, 0.0);
+                let v2 = shape.offset + Vec2::new(shape.size.width, shape.size.height);
+                let v3 = shape.offset + Vec2::new(0.0, shape.size.height);
+                let rotation = Mat2::from_angle(body.rotation);
+                let position = body.position;
+                let v0 = rotation * v0;
+                let v1 = rotation * v1;
+                let v2 = rotation * v2;
+                let v3 = rotation * v3;
+                let s0 = v0.dot(up.0);
+                let s1 = v1.dot(up.0);
+                let s2 = v2.dot(up.0);
+                let s3 = v3.dot(up.0);
+                let v = [v0, v1, v2, v3];
+                let s = [s0, s1, s2, s3];
+                let min = s0.min(s1).min(s2).min(s3);
+                let mut lowest_point = Vec2::zero();
+                let mut count = 0;
+                for (&v, &s) in v.iter().zip(&s) {
+                    if s == min {
+                        lowest_point += v;
+                        count += 1;
+                    }
+                }
+                body.lowest_position = position + lowest_point / count as f32;
+            }
+        }
     }
 }
 

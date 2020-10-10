@@ -99,8 +99,8 @@ pub mod prelude2d {
     //! simulation.
     pub use crate::common::{GlobalFriction, Mass, Status};
     pub use crate::dim2::{
-        BroadPhase, GlobalGravity, GlobalStep, Joint, Manifold, Physics2dPlugin, RigidBody,
-        RotationMode, Shape, TranslationMode,
+        AngularTolerance, BroadPhase, GlobalGravity, GlobalStep, GlobalUp, Joint, Manifold,
+        Physics2dPlugin, RigidBody, RotationMode, Shape, TranslationMode,
     };
 }
 

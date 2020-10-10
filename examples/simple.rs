@@ -14,7 +14,8 @@ fn main() {
         .add_plugin(Physics2dPlugin)
         .add_resource(GlobalGravity(Vec2::new(0.0, -500.0)))
         .add_resource(GlobalFriction(0.90))
-        .add_resource(GlobalStep::y(15.0))
+        .add_resource(GlobalStep(15.0))
+        .add_resource(GlobalUp(Vec2::new(0.0, 1.0)))
         .add_startup_system(setup.system());
     let character_system = CharacterControllerSystem::default().system(builder.resources_mut());
     builder.add_system(character_system);
@@ -64,7 +65,20 @@ fn setup(
         .with(
             RigidBody::new(Mass::Infinite)
                 .with_status(Status::Static)
-                .with_position(Vec2::new(120.0, -90.0)),
+                .with_position(Vec2::new(120.0, -90.0))
+                .with_rotation(10.0_f32.to_radians()),
+        )
+        .with_children(|parent| {
+            parent.spawn((Shape::from(Size::new(120.0, 20.0)),));
+        })
+        .spawn(SpriteComponents {
+            material: materials.add(plat.into()),
+            ..Default::default()
+        })
+        .with(
+            RigidBody::new(Mass::Infinite)
+                .with_status(Status::Static)
+                .with_position(Vec2::new(-120.0, -90.0)),
         )
         .with_children(|parent| {
             parent.spawn((Shape::from(Size::new(120.0, 20.0)),));
@@ -112,7 +126,7 @@ fn setup(
         .with(
             RigidBody::new(Mass::Real(1.0))
                 .with_status(Status::Semikinematic)
-                .with_position(Vec2::new(0.0, 60.0)),
+                .with_position(Vec2::new(30.0, 60.0)),
         )
         .with_children(|parent| {
             parent.spawn((Shape::from(Size::new(20.0, 20.0)),));
@@ -139,11 +153,11 @@ fn character_system(
     mut query: Query<(Mut<CharacterController>, Mut<RigidBody>)>,
 ) {
     for manifold in state.reader.iter(&manifolds) {
-        if manifold.normals.y() < 0.0 {
+        if manifold.normal.y() < 0.0 {
             if let Ok(mut controller) = query.get_mut::<CharacterController>(manifold.body1) {
                 controller.on_ground = true;
             }
-        } else if manifold.normals.y() > 0.0 {
+        } else if manifold.normal.y() > 0.0 {
             if let Ok(mut controller) = query.get_mut::<CharacterController>(manifold.body2) {
                 controller.on_ground = true;
             }
