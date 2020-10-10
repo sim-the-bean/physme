@@ -16,5 +16,5 @@ git = "https://github.com/bevyengine/bevy.git"
 branch = "master"
 
 [dev-dependencies.bevy_mod_picking]
-git = "https://github.com/walterpie/bevy_mod_picking.git"
-branch = "global-transform"
+git = "https://github.com/aevyrie/bevy_mod_picking.git"
+branch = "master"
