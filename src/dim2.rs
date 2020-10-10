@@ -306,6 +306,42 @@ impl RigidBody {
     pub fn apply_force(&mut self, force: Vec2) {
         self.accumulator += force * self.inv_mass;
     }
+
+    /// Gets the active flag.
+    pub fn is_active(&self) -> bool {
+        self.active
+    }
+
+    /// Gets the sensor flag.
+    pub fn is_sensor(&self) -> bool {
+        self.sensor
+    }
+
+    /// Gets the mass
+    pub fn mass(&self) -> f32 {
+        self.mass
+    }
+
+    /// Gets the mass
+    pub fn inverse_mass(&self) -> f32 {
+        self.inv_mass
+    }
+
+    /// Sets the active flag.
+    pub fn set_active(&mut self, active: bool) {
+        self.active = active;
+    }
+
+    /// Sets the sensor flag.
+    pub fn set_sensor(&mut self, sensor: bool) {
+        self.sensor = sensor;
+    }
+
+    /// Sets the mass.
+    pub fn set_mass(&mut self, mass: Mass) {
+        self.mass = mass.scalar();
+        self.inv_mass = mass.inverse();
+    }
 }
 
 /// Represents a single active collision between this and another `RigidBody`.
