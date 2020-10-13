@@ -593,10 +593,10 @@ fn narrow_phase_system(
             continue;
         }
 
-        // if state.set.contains(&[collider2.body, collider1.body]) {
-        //     continue;
-        // }
-        // state.set.insert([collider1.body, collider2.body]);
+        if state.set.contains(&[collider2.body, collider1.body]) {
+            continue;
+        }
+        state.set.insert([collider1.body, collider2.body]);
 
         if let Some(manifold) = collision::box_to_box(&collider1, &collider2) {
             manifolds.send(manifold);
@@ -692,7 +692,7 @@ fn solve_system(
                             Vec3::new(x, y, z)
                         };
                         a.linvel *= c;
-                        a.position += d * 0.5;
+                        a.position += d;
                     }
                 } else {
                     let mut solve = true;
@@ -741,7 +741,7 @@ fn solve_system(
                                 Vec3::new(x, y, z)
                             };
                             a.linvel *= c;
-                            a.position += d * 0.5;
+                            a.position += d;
                         }
                     }
                 }
@@ -783,7 +783,7 @@ fn solve_system(
                             Vec3::new(x, y, z)
                         };
                         b.linvel *= c;
-                        b.position += d * 0.5;
+                        b.position += d;
                     }
                 } else {
                     let mut solve = true;
@@ -832,7 +832,7 @@ fn solve_system(
                                 Vec3::new(x, y, z)
                             };
                             b.linvel *= c;
-                            b.position += d * 0.5;
+                            b.position += d;
                         }
                     }
                 }
@@ -933,7 +933,7 @@ fn physics_step_system(
         let (axis, mut angle) = body.angvel.to_axis_angle();
         angle *= delta_time;
         let rotation = body.rotation * Quat::from_axis_angle(axis, angle);
-        body.rotation = rotation;
+        body.rotation = rotation.normalize();
 
         match body.status {
             Status::Semikinematic => {

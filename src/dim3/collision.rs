@@ -746,7 +746,7 @@ pub fn box_to_box(a: &Obb, b: &Obb) -> Option<Manifold> {
     let btxr = Mat3::from_quat(btx.rotation());
 
     s = t.dot(c.row0()).abs() - (eb.x() + absc.row0().dot(ea));
-    match track_face_axis(0, s, bmax, btxr.row0()) {
+    match track_face_axis(3, s, bmax, btxr.row0()) {
         TrackFaceAxis::None => return None,
         TrackFaceAxis::Some { max, axis, normal } => {
             bmax = max;
@@ -757,18 +757,18 @@ pub fn box_to_box(a: &Obb, b: &Obb) -> Option<Manifold> {
     }
 
     s = t.dot(c.row1()).abs() - (eb.y() + absc.row1().dot(ea));
-    match track_face_axis(1, s, bmax, btxr.row1()) {
+    match track_face_axis(4, s, bmax, btxr.row1()) {
         TrackFaceAxis::None => return None,
         TrackFaceAxis::Some { max, axis, normal } => {
-            amax = max;
-            aaxis = axis;
-            na = normal;
+            bmax = max;
+            baxis = axis;
+            nb = normal;
         }
         _ => {}
     }
 
     s = t.dot(c.row2()).abs() - (eb.z() + absc.row2().dot(ea));
-    match track_face_axis(2, s, bmax, btxr.row2()) {
+    match track_face_axis(5, s, bmax, btxr.row2()) {
         TrackFaceAxis::None => return None,
         TrackFaceAxis::Some { max, axis, normal } => {
             bmax = max;
@@ -782,10 +782,10 @@ pub fn box_to_box(a: &Obb, b: &Obb) -> Option<Manifold> {
         let mut ra;
         let mut rb;
 
-        ra = ea.y() * absca[0][2] + ea.z() * absca[0][1];
-        rb = eb.y() * absca[2][0] + eb.z() * absca[1][0];
-        s = (t.z() * ca[0][1] - t.y() * ca[0][2]).abs() - (ra + rb);
-        let normal = Vec3::new(0.0, -ca[0][2], ca[0][1]);
+        ra = ea.y() * absca[2][0] + ea.z() * absca[1][0];
+        rb = eb.y() * absca[0][2] + eb.z() * absca[0][1];
+        s = (t.z() * ca[1][0] - t.y() * ca[2][0]).abs() - (ra + rb);
+        let normal = Vec3::new(0.0, -ca[2][0], ca[1][0]);
         match track_edge_axis(6, s, emax, normal) {
             TrackEdgeAxis::None => return None,
             TrackEdgeAxis::Some { max, axis, normal } => {
@@ -796,10 +796,10 @@ pub fn box_to_box(a: &Obb, b: &Obb) -> Option<Manifold> {
             _ => {}
         }
 
-        ra = ea.y() * absca[1][2] + ea.z() * absca[1][1];
-        rb = eb.x() * absca[2][0] + eb.z() * absca[0][0];
-        s = (t.z() * ca[1][1] - t.y() * ca[1][2]).abs() - (ra + rb);
-        let normal = Vec3::new(0.0, -ca[1][2], ca[1][1]);
+        ra = ea.y() * absca[2][1] + ea.z() * absca[1][1];
+        rb = eb.x() * absca[0][2] + eb.z() * absca[0][0];
+        s = (t.z() * ca[1][1] - t.y() * ca[2][1]).abs() - (ra + rb);
+        let normal = Vec3::new(0.0, -ca[2][1], ca[1][1]);
         match track_edge_axis(7, s, emax, normal) {
             TrackEdgeAxis::None => return None,
             TrackEdgeAxis::Some { max, axis, normal } => {
@@ -810,10 +810,10 @@ pub fn box_to_box(a: &Obb, b: &Obb) -> Option<Manifold> {
             _ => {}
         }
 
-        ra = ea.y() * absca[2][2] + ea.z() * absca[2][1];
-        rb = eb.x() * absca[1][0] + eb.y() * absca[0][0];
-        s = (t.z() * ca[2][1] - t.y() * ca[2][2]).abs() - (ra + rb);
-        let normal = Vec3::new(0.0, -ca[2][2], ca[2][1]);
+        ra = ea.y() * absca[2][2] + ea.z() * absca[1][2];
+        rb = eb.x() * absca[0][1] + eb.y() * absca[0][0];
+        s = (t.z() * ca[1][2] - t.y() * ca[2][2]).abs() - (ra + rb);
+        let normal = Vec3::new(0.0, -ca[2][2], ca[1][2]);
         match track_edge_axis(8, s, emax, normal) {
             TrackEdgeAxis::None => return None,
             TrackEdgeAxis::Some { max, axis, normal } => {
@@ -824,10 +824,10 @@ pub fn box_to_box(a: &Obb, b: &Obb) -> Option<Manifold> {
             _ => {}
         }
 
-        ra = ea.x() * absca[0][2] + ea.z() * absca[0][0];
-        rb = eb.y() * absca[2][1] + eb.z() * absca[1][1];
-        s = (t.x() * ca[0][2] - t.z() * ca[0][0]).abs() - (ra + rb);
-        let normal = Vec3::new(ca[0][2], 0.0, -ca[0][0]);
+        ra = ea.x() * absca[2][0] + ea.z() * absca[0][0];
+        rb = eb.y() * absca[1][2] + eb.z() * absca[1][1];
+        s = (t.x() * ca[2][0] - t.z() * ca[0][0]).abs() - (ra + rb);
+        let normal = Vec3::new(ca[2][0], 0.0, -ca[0][0]);
         match track_edge_axis(9, s, emax, normal) {
             TrackEdgeAxis::None => return None,
             TrackEdgeAxis::Some { max, axis, normal } => {
@@ -838,10 +838,10 @@ pub fn box_to_box(a: &Obb, b: &Obb) -> Option<Manifold> {
             _ => {}
         }
 
-        ra = ea.x() * absca[1][2] + ea.z() * absca[1][0];
-        rb = eb.x() * absca[2][1] + eb.z() * absca[0][1];
-        s = (t.x() * ca[1][2] - t.z() * ca[1][0]).abs() - (ra + rb);
-        let normal = Vec3::new(ca[1][2], 0.0, -ca[1][0]);
+        ra = ea.x() * absca[2][1] + ea.z() * absca[0][1];
+        rb = eb.x() * absca[1][2] + eb.z() * absca[1][0];
+        s = (t.x() * ca[2][1] - t.z() * ca[0][1]).abs() - (ra + rb);
+        let normal = Vec3::new(ca[2][1], 0.0, -ca[0][1]);
         match track_edge_axis(10, s, emax, normal) {
             TrackEdgeAxis::None => return None,
             TrackEdgeAxis::Some { max, axis, normal } => {
@@ -852,10 +852,10 @@ pub fn box_to_box(a: &Obb, b: &Obb) -> Option<Manifold> {
             _ => {}
         }
 
-        ra = ea.x() * absca[2][2] + ea.z() * absca[2][0];
-        rb = eb.x() * absca[1][1] + eb.y() * absca[0][1];
-        s = (t.x() * ca[2][2] - t.z() * ca[2][0]).abs() - (ra + rb);
-        let normal = Vec3::new(ca[2][2], 0.0, -ca[2][0]);
+        ra = ea.x() * absca[2][2] + ea.z() * absca[0][2];
+        rb = eb.x() * absca[1][1] + eb.y() * absca[1][0];
+        s = (t.x() * ca[2][2] - t.z() * ca[0][2]).abs() - (ra + rb);
+        let normal = Vec3::new(ca[2][2], 0.0, -ca[0][2]);
         match track_edge_axis(11, s, emax, normal) {
             TrackEdgeAxis::None => return None,
             TrackEdgeAxis::Some { max, axis, normal } => {
@@ -866,10 +866,10 @@ pub fn box_to_box(a: &Obb, b: &Obb) -> Option<Manifold> {
             _ => {}
         }
 
-        ra = ea.x() * absca[0][1] + ea.y() * absca[0][0];
-        rb = eb.y() * absca[2][2] + eb.z() * absca[1][2];
-        s = (t.y() * ca[0][0] - t.x() * ca[0][1]).abs() - (ra + rb);
-        let normal = Vec3::new(-ca[0][1], ca[0][0], 0.0);
+        ra = ea.x() * absca[1][0] + ea.y() * absca[0][0];
+        rb = eb.y() * absca[2][2] + eb.z() * absca[2][1];
+        s = (t.y() * ca[0][0] - t.x() * ca[1][0]).abs() - (ra + rb);
+        let normal = Vec3::new(-ca[1][0], ca[0][0], 0.0);
         match track_edge_axis(12, s, emax, normal) {
             TrackEdgeAxis::None => return None,
             TrackEdgeAxis::Some { max, axis, normal } => {
@@ -880,10 +880,10 @@ pub fn box_to_box(a: &Obb, b: &Obb) -> Option<Manifold> {
             _ => {}
         }
 
-        ra = ea.x() * absca[1][1] + ea.y() * absca[1][0];
-        rb = eb.x() * absca[2][2] + eb.z() * absca[0][2];
-        s = (t.y() * ca[1][0] - t.x() * ca[1][1]).abs() - (ra + rb);
-        let normal = Vec3::new(-ca[1][1], ca[1][0], 0.0);
+        ra = ea.x() * absca[1][1] + ea.y() * absca[0][1];
+        rb = eb.x() * absca[2][2] + eb.z() * absca[2][0];
+        s = (t.y() * ca[0][1] - t.x() * ca[1][1]).abs() - (ra + rb);
+        let normal = Vec3::new(-ca[1][1], ca[0][1], 0.0);
         match track_edge_axis(13, s, emax, normal) {
             TrackEdgeAxis::None => return None,
             TrackEdgeAxis::Some { max, axis, normal } => {
@@ -894,10 +894,10 @@ pub fn box_to_box(a: &Obb, b: &Obb) -> Option<Manifold> {
             _ => {}
         }
 
-        ra = ea.x() * absca[2][1] + ea.y() * absca[2][0];
-        rb = eb.x() * absca[1][2] + eb.y() * absca[0][2];
-        s = (t.y() * ca[2][0] - t.x() * ca[2][1]).abs() - (ra + rb);
-        let normal = Vec3::new(-ca[2][1], ca[2][0], 0.0);
+        ra = ea.x() * absca[1][2] + ea.y() * absca[0][2];
+        rb = eb.x() * absca[2][1] + eb.y() * absca[2][0];
+        s = (t.y() * ca[0][2] - t.x() * ca[1][2]).abs() - (ra + rb);
+        let normal = Vec3::new(-ca[1][2], ca[0][2], 0.0);
         match track_edge_axis(14, s, emax, normal) {
             TrackEdgeAxis::None => return None,
             TrackEdgeAxis::Some { max, axis, normal } => {
