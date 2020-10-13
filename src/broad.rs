@@ -162,7 +162,7 @@ impl RTreeObject for dim2::Obb {
     }
 }
 
-impl RTreeObject for dim3::Aabb {
+impl RTreeObject for dim3::Obb {
     type Envelope = AABB<NPoint<Vec3>>;
 
     fn envelope(&self) -> Self::Envelope {

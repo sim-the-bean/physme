@@ -109,7 +109,7 @@ pub mod prelude3d {
     //! simulation.
     pub use crate::common::{GlobalFriction, Mass, Status};
     pub use crate::dim3::{
-        BroadPhase, GlobalGravity, GlobalStep, Joint, Manifold, Physics3dPlugin, RigidBody, Shape,
-        Size3,
+        AngularTolerance, BroadPhase, GlobalGravity, GlobalStep, GlobalUp, Joint, Manifold,
+        Physics3dPlugin, RigidBody, Shape, Size3,
     };
 }
