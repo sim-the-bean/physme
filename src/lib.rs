@@ -29,7 +29,7 @@
 //! #     .add_plugin(Physics2dPlugin)
 //!     .add_resource(GlobalGravity(Vec2::new(0.0, -500.0)))
 //!     .add_resource(GlobalFriction(0.90))
-//!     .add_resource(GlobalStep::y(15.0));
+//!     .add_resource(GlobalStep(15.0));
 //! ```
 //!
 //! and then, in your `setup` function, adding a `RigidBody` component to your
