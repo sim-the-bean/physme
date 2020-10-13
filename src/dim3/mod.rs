@@ -90,6 +90,26 @@ impl Default for AngularTolerance {
     }
 }
 
+/// The local up vector, affects a single semikinematic body.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Up(pub Vec3);
+
+impl Default for Up {
+    fn default() -> Self {
+        Self(Vec3::new(0.0, 1.0, 0.0))
+    }
+}
+
+/// The rotation, relative to the up vector.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct UpRotation(pub f32);
+
+impl Default for UpRotation {
+    fn default() -> Self {
+        Self(0.0)
+    }
+}
+
 #[doc(hidden)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Obb {
@@ -624,7 +644,7 @@ fn solve_system(
     up: Res<GlobalUp>,
     step: Res<GlobalStep>,
     ang_tol: Res<AngularTolerance>,
-    query: Query<Mut<RigidBody>>,
+    query: Query<(Mut<RigidBody>, Option<Mut<Up>>)>,
 ) {
     let delta_time = time.delta.as_secs_f32();
 
@@ -662,6 +682,13 @@ fn solve_system(
         match a.status {
             Status::Static => {}
             Status::Semikinematic => {
+                if let Ok(mut local_up) = query.get_mut::<Up>(manifold.body1) {
+                    let angle = up.0.dot(manifold.normal).acos();
+                    if angle >= 0.0 && angle < ang_tol.0 {
+                        local_up.0 = manifold.normal;
+                    }
+                }
+
                 if let Some((impulse, _)) = dynamics {
                     a.dynamic_acc += impulse;
 
@@ -753,6 +780,13 @@ fn solve_system(
         match b.status {
             Status::Static => {}
             Status::Semikinematic => {
+                if let Ok(mut local_up) = query.get_mut::<Up>(manifold.body2) {
+                    let angle = up.0.dot(manifold.normal).acos();
+                    if angle >= 0.0 && angle < ang_tol.0 {
+                        local_up.0 = manifold.normal;
+                    }
+                }
+
                 if let Some((_, impulse)) = dynamics {
                     b.dynamic_acc += impulse;
 
@@ -865,7 +899,8 @@ fn physics_step_system(
     time: Res<Time>,
     friction: Res<GlobalFriction>,
     gravity: Res<GlobalGravity>,
-    mut query: Query<Mut<RigidBody>>,
+    global_up: Res<GlobalUp>,
+    mut query: Query<(Mut<RigidBody>, Option<(&Up, &UpRotation)>)>,
 ) {
     if state.skip > 0 {
         state.skip -= 1;
@@ -874,7 +909,7 @@ fn physics_step_system(
 
     let delta_time = time.delta.as_secs_f32();
 
-    for mut body in &mut query.iter() {
+    for (mut body, local_up) in &mut query.iter() {
         if !body.active {
             continue;
         }
@@ -932,8 +967,18 @@ fn physics_step_system(
 
         let (axis, mut angle) = body.angvel.to_axis_angle();
         angle *= delta_time;
-        let rotation = body.rotation * Quat::from_axis_angle(axis, angle);
-        body.rotation = rotation.normalize();
+        if let Some((local_up, up_rotation)) = local_up {
+            let mut axis = local_up.0 * axis;
+            if axis.length_squared() <= f32::EPSILON {
+                axis = Vec3::new(0.0, 1.0, 0.0);
+            }
+            let rotation = Quat::from_axis_angle(axis, angle + up_rotation.0);
+            let angle = local_up.0.quat_between(global_up.0);
+            body.rotation = (rotation * angle).normalize();
+        } else {
+            let rotation = body.rotation * Quat::from_axis_angle(axis, angle);
+            body.rotation = rotation.normalize();
+        }
 
         match body.status {
             Status::Semikinematic => {

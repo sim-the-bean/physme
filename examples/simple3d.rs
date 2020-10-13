@@ -1,23 +1,6 @@
 use bevy::prelude::*;
 use physme::prelude3d::*;
 
-pub trait Vec3Ext {
-    fn quat_between(&self, other: Vec3) -> Quat;
-}
-
-impl Vec3Ext for Vec3 {
-    fn quat_between(&self, other: Vec3) -> Quat {
-        let dot = self.dot(other);
-        if dot > 0.995 || dot < -0.995 {
-            return Quat::identity();
-        }
-
-        let axis = self.cross(other);
-        let angle = (self.length_squared() * other.length_squared()).sqrt() + dot;
-        Quat::from_axis_angle(axis, angle)
-    }
-}
-
 trait QuatExt {
     fn to_rotation_ypr(&self) -> (f32, f32, f32);
 }
@@ -47,7 +30,6 @@ pub struct CharacterController {
     on_ground: bool,
     jump: bool,
     camera: Entity,
-    up: Vec3,
 }
 
 impl CharacterController {
@@ -56,7 +38,6 @@ impl CharacterController {
             on_ground: false,
             jump: false,
             camera,
-            up: Vec3::new(0.0, 1.0, 0.0),
         }
     }
 }
@@ -109,6 +90,8 @@ fn setup(
                 .with_status(Status::Semikinematic)
                 .with_position(Vec3::new(0.0, 2.0, 0.0)),
         )
+        .with(Up::default())
+        .with(UpRotation::default())
         .with(CharacterController::new(camera.unwrap()))
         .with_children(|parent| {
             parent.spawn((Shape::from(Size3::new(1.0, 1.0, 1.0)),));
@@ -183,13 +166,15 @@ impl CharacterControllerSystem {
 
 fn character_system(
     mut state: Local<CharacterControllerSystem>,
+    time: Res<Time>,
     input: Res<Input<KeyCode>>,
     manifolds: Res<Events<Manifold>>,
     up: Res<GlobalUp>,
     ang_tol: Res<AngularTolerance>,
-    mut query: Query<(Mut<CharacterController>, Mut<RigidBody>)>,
+    mut query: Query<(Mut<CharacterController>, Mut<RigidBody>, Mut<UpRotation>)>,
     camera: Query<Mut<Transform>>,
 ) {
+    let delta_time = time.delta.as_secs_f32();
     for manifold in state.reader.iter(&manifolds) {
         let dot = up.0.dot(manifold.normal);
         let angle = (-dot).acos();
@@ -221,7 +206,7 @@ fn character_system(
         }
     }
 
-    for (mut controller, mut body) in &mut query.iter() {
+    for (mut controller, mut body, mut rotation) in &mut query.iter() {
         if input.just_pressed(KeyCode::Space) {
             controller.jump = true;
         }
@@ -232,10 +217,10 @@ fn character_system(
             }
         }
         if input.pressed(KeyCode::Q) {
-            body.apply_angular_impulse(Quat::from_rotation_y(0.2));
+            rotation.0 += 0.2 * delta_time;
         }
         if input.pressed(KeyCode::E) {
-            body.apply_angular_impulse(Quat::from_rotation_y(-0.2));
+            rotation.0 -= 0.2 * delta_time;
         }
         if input.pressed(KeyCode::W) {
             let impulse = body.rotation * Vec3::new(0.0, 0.0, -0.5);

@@ -107,9 +107,9 @@ pub mod prelude2d {
 pub mod prelude3d {
     //! This module re-exports all the things you might need for 3d physics
     //! simulation.
-    pub use crate::common::{GlobalFriction, Mass, Status};
+    pub use crate::common::{GlobalFriction, Mass, Status, Vec3Ext};
     pub use crate::dim3::{
         AngularTolerance, BroadPhase, GlobalGravity, GlobalStep, GlobalUp, Joint, Manifold,
-        Physics3dPlugin, RigidBody, Shape, Size3,
+        Physics3dPlugin, RigidBody, Shape, Size3, Up, UpRotation,
     };
 }
