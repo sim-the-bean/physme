@@ -154,7 +154,7 @@ where
     fn status(&self) -> Status;
 }
 
-impl RTreeObject for dim2::Aabb {
+impl RTreeObject for dim2::Obb {
     type Envelope = AABB<NPoint<Vec2>>;
 
     fn envelope(&self) -> Self::Envelope {
@@ -162,7 +162,7 @@ impl RTreeObject for dim2::Aabb {
     }
 }
 
-impl RTreeObject for dim3::Aabb {
+impl RTreeObject for dim3::Obb {
     type Envelope = AABB<NPoint<Vec3>>;
 
     fn envelope(&self) -> Self::Envelope {

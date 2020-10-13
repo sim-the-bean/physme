@@ -1,6 +1,26 @@
 //! Commmon type definitions for 2d and 3d physics simulation.
-
 use std::num::FpCategory;
+
+use bevy::math::*;
+
+/// Extensions to the Bevy `Vec3` type
+pub trait Vec3Ext {
+    /// Returns the quaternion that describes the rotation from `self` to `other`.
+    fn quat_between(&self, other: Vec3) -> Quat;
+}
+
+impl Vec3Ext for Vec3 {
+    fn quat_between(&self, other: Vec3) -> Quat {
+        let dot = self.dot(other);
+        if dot > 0.995 || dot < -0.995 {
+            return Quat::identity();
+        }
+
+        let axis = self.cross(other);
+        let angle = (self.length_squared() * other.length_squared()).sqrt() + dot;
+        Quat::from_axis_angle(axis, angle)
+    }
+}
 
 /// The global friction that affects every `RigidBody`, both 2d and 3d.
 #[derive(Debug, Clone, Copy, PartialEq)]

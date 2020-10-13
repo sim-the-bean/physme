@@ -1,4 +1,4 @@
-//! This module provides the primitives and systems for 2d physics simulation.
+//! This module provides the primitives and systems for 3d physics simulation.
 //!
 //! For examples, see the root of the crate.
 
@@ -13,28 +13,28 @@ use smallvec::SmallVec;
 use crate::broad::{self, BoundingBox, Collider};
 use crate::common::*;
 
-/// This is what you want to add to your `App` if you want to run 2d physics simulation.
-pub struct Physics2dPlugin;
+mod collision;
+
+/// This is what you want to add to your `App` if you want to run 3d physics simulation.
+pub struct Physics3dPlugin;
 
 pub mod stage {
     #[doc(hidden)]
     pub use bevy::prelude::stage::*;
 
-    pub const PHYSICS_STEP: &str = "physics_step";
-    pub const BROAD_PHASE: &str = "broad_phase";
-    pub const NARROW_PHASE: &str = "narrow_phase";
-    pub const PHYSICS_SOLVE: &str = "physics_solve";
-    pub const SYNC_TRANSFORM: &str = "sync_transform";
+    pub const PHYSICS_STEP: &str = "physics_step_3d";
+    pub const BROAD_PHASE: &str = "broad_phase_3d";
+    pub const NARROW_PHASE: &str = "narrow_phase_3d";
+    pub const PHYSICS_SOLVE: &str = "physics_solve_3d";
+    pub const SYNC_TRANSFORM: &str = "sync_transform_3d";
 }
 
-impl Plugin for Physics2dPlugin {
+impl Plugin for Physics3dPlugin {
     fn build(&self, app: &mut AppBuilder) {
         app.add_resource(GlobalFriction::default())
             .add_resource(GlobalGravity::default())
-            .add_resource(TranslationMode::default())
-            .add_resource(RotationMode::default())
-            .add_resource(GlobalStep::default())
             .add_resource(GlobalUp::default())
+            .add_resource(GlobalStep::default())
             .add_resource(AngularTolerance::default())
             .add_event::<Manifold>()
             .add_stage_before(stage::UPDATE, stage::PHYSICS_STEP)
@@ -55,16 +55,28 @@ impl Plugin for Physics2dPlugin {
 pub type BroadPhase = broad::BroadPhase<Obb>;
 
 /// The global gravity that affects every `RigidBody` with the `Semikinematic` status.
-#[derive(Default, Debug, Clone, Copy, PartialEq)]
-pub struct GlobalGravity(pub Vec2);
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GlobalGravity(pub Vec3);
+
+impl Default for GlobalGravity {
+    fn default() -> Self {
+        Self(Vec3::new(0.0, -9.8, 0.0))
+    }
+}
 
 /// The global step value, affects all semikinematic bodies.
 #[derive(Default, Debug, Clone, Copy, PartialEq)]
 pub struct GlobalStep(pub f32);
 
 /// The global up vector, affects all semikinematic bodies.
-#[derive(Default, Debug, Clone, Copy, PartialEq)]
-pub struct GlobalUp(pub Vec2);
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GlobalUp(pub Vec3);
+
+impl Default for GlobalUp {
+    fn default() -> Self {
+        Self(Vec3::new(0.0, 1.0, 0.0))
+    }
+}
 
 /// The global angular tolerance in radians, affects all semikinematic bodies.
 ///
@@ -78,108 +90,180 @@ impl Default for AngularTolerance {
     }
 }
 
+/// The local up vector, affects a single semikinematic body.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Up(pub Vec3);
+
+impl Default for Up {
+    fn default() -> Self {
+        Self(Vec3::new(0.0, 1.0, 0.0))
+    }
+}
+
+/// The rotation, relative to the up vector.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct UpRotation(pub f32);
+
+impl Default for UpRotation {
+    fn default() -> Self {
+        Self(0.0)
+    }
+}
+
 #[doc(hidden)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Obb {
     status: Status,
     body: Entity,
-    position: Vec2,
-    rotation: Mat2,
-    vertices: [Vec2; 4],
-    normals: [Vec2; 4],
+    local: Transform,
+    transform: Transform,
+    extent: Vec3,
 }
 
 impl Obb {
     fn new(
         status: Status,
         body: Entity,
-        rotation: Mat2,
-        position: Vec2,
-        v0: Vec2,
-        v1: Vec2,
-        v2: Vec2,
-        v3: Vec2,
-        n0: Vec2,
-        n1: Vec2,
+        local: Transform,
+        transform: Transform,
+        extent: Vec3,
     ) -> Self {
         Self {
             status,
             body,
-            rotation,
-            position,
-            vertices: [v0, v1, v2, v3],
-            normals: [-n1, n0, n1, -n0],
+            local,
+            transform,
+            extent,
         }
     }
 
-    pub fn v0(&self) -> Vec2 {
-        self.rotation * self.vertices[0] + self.position
+    pub fn v0(&self) -> Vec3 {
+        let v = Vec3::new(-self.extent.x(), -self.extent.y(), -self.extent.z());
+        self.transform
+            .value()
+            .transform_point3(self.local.value().transform_point3(v))
     }
 
-    pub fn v1(&self) -> Vec2 {
-        self.rotation * self.vertices[1] + self.position
+    pub fn v1(&self) -> Vec3 {
+        let v = Vec3::new(self.extent.x(), -self.extent.y(), -self.extent.z());
+        self.transform
+            .value()
+            .transform_point3(self.local.value().transform_point3(v))
     }
 
-    pub fn v2(&self) -> Vec2 {
-        self.rotation * self.vertices[2] + self.position
+    pub fn v2(&self) -> Vec3 {
+        let v = Vec3::new(self.extent.x(), self.extent.y(), -self.extent.z());
+        self.transform
+            .value()
+            .transform_point3(self.local.value().transform_point3(v))
     }
 
-    pub fn v3(&self) -> Vec2 {
-        self.rotation * self.vertices[3] + self.position
+    pub fn v3(&self) -> Vec3 {
+        let v = Vec3::new(-self.extent.x(), self.extent.y(), -self.extent.z());
+        self.transform
+            .value()
+            .transform_point3(self.local.value().transform_point3(v))
     }
 
-    pub fn min(&self) -> Vec2 {
+    pub fn v4(&self) -> Vec3 {
+        let v = Vec3::new(-self.extent.x(), -self.extent.y(), self.extent.z());
+        self.transform
+            .value()
+            .transform_point3(self.local.value().transform_point3(v))
+    }
+
+    pub fn v5(&self) -> Vec3 {
+        let v = Vec3::new(self.extent.x(), -self.extent.y(), self.extent.z());
+        self.transform
+            .value()
+            .transform_point3(self.local.value().transform_point3(v))
+    }
+
+    pub fn v6(&self) -> Vec3 {
+        let v = Vec3::new(self.extent.x(), self.extent.y(), self.extent.z());
+        self.transform
+            .value()
+            .transform_point3(self.local.value().transform_point3(v))
+    }
+
+    pub fn v7(&self) -> Vec3 {
+        let v = Vec3::new(-self.extent.x(), self.extent.y(), self.extent.z());
+        self.transform
+            .value()
+            .transform_point3(self.local.value().transform_point3(v))
+    }
+
+    pub fn min(&self) -> Vec3 {
         let min_x = self
             .v0()
             .x()
             .min(self.v1().x())
             .min(self.v2().x())
-            .min(self.v3().x());
+            .min(self.v3().x())
+            .min(self.v4().x())
+            .min(self.v5().x())
+            .min(self.v6().x())
+            .min(self.v7().x());
         let min_y = self
             .v0()
             .y()
             .min(self.v1().y())
             .min(self.v2().y())
-            .min(self.v3().y());
-        Vec2::new(min_x, min_y)
+            .min(self.v3().y())
+            .min(self.v4().y())
+            .min(self.v5().y())
+            .min(self.v6().y())
+            .min(self.v7().y());
+        let min_z = self
+            .v0()
+            .z()
+            .min(self.v1().z())
+            .min(self.v2().z())
+            .min(self.v3().z())
+            .min(self.v4().z())
+            .min(self.v5().z())
+            .min(self.v6().z())
+            .min(self.v7().z());
+        Vec3::new(min_x, min_y, min_z)
     }
 
-    pub fn max(&self) -> Vec2 {
+    pub fn max(&self) -> Vec3 {
         let max_x = self
             .v0()
             .x()
             .max(self.v1().x())
             .max(self.v2().x())
-            .max(self.v3().x());
+            .max(self.v3().x())
+            .max(self.v4().x())
+            .max(self.v5().x())
+            .max(self.v6().x())
+            .max(self.v7().x());
         let max_y = self
             .v0()
             .y()
             .max(self.v1().y())
             .max(self.v2().y())
-            .max(self.v3().y());
-        Vec2::new(max_x, max_y)
-    }
-
-    pub fn get_support(&self, dir: Vec2) -> Vec2 {
-        let mut best_projection = f32::MIN;
-        let mut best_vertex = Vec2::zero();
-
-        for i in 0..4 {
-            let v = self.vertices[i];
-            let proj = v.dot(dir);
-
-            if proj > best_projection {
-                best_vertex = v;
-                best_projection = proj;
-            }
-        }
-
-        best_vertex
+            .max(self.v3().y())
+            .max(self.v4().y())
+            .max(self.v5().y())
+            .max(self.v6().y())
+            .max(self.v7().y());
+        let max_z = self
+            .v0()
+            .z()
+            .max(self.v1().z())
+            .max(self.v2().z())
+            .max(self.v3().z())
+            .max(self.v4().z())
+            .max(self.v5().z())
+            .max(self.v6().z())
+            .max(self.v7().z());
+        Vec3::new(max_x, max_y, max_z)
     }
 }
 
 impl Collider for Obb {
-    type Point = Vec2;
+    type Point = Vec3;
 
     fn bounding_box(&self) -> BoundingBox<Self::Point> {
         BoundingBox::new(self.min(), self.max())
@@ -190,35 +274,59 @@ impl Collider for Obb {
     }
 }
 
+/// The three dimensional size of a `Shape`
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Size3 {
+    pub width: f32,
+    pub height: f32,
+    pub depth: f32,
+}
+
+impl Size3 {
+    /// Returns a new 3d size.
+    pub fn new(width: f32, height: f32, depth: f32) -> Self {
+        Self {
+            width,
+            height,
+            depth,
+        }
+    }
+}
+
 /// The shape of a rigid body.
 ///
 /// Contains a rotation/translation offset and a size.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Shape {
-    offset: Vec2,
-    size: Size,
+    local: Transform,
+    size: Size3,
 }
 
 impl Shape {
     /// Return a new `Shape` with a zero offset and a size.
-    pub fn new(size: Size) -> Self {
-        let offset = Vec2::zero();
-        Self { offset, size }
+    pub fn new(size: Size3) -> Self {
+        let local = Transform::identity();
+        Self { local, size }
     }
 
     /// Return a new `Shape` with an offset and a size.
-    pub fn with_offset(mut self, offset: Vec2) -> Self {
-        self.offset = offset;
+    pub fn with_local(mut self, local: Transform) -> Self {
+        self.local = local;
         self
+    }
+
+    pub fn extent(&self) -> Vec3 {
+        Vec3::new(
+            self.size.width * 0.5,
+            self.size.height * 0.5,
+            self.size.depth * 0.5,
+        )
     }
 }
 
-impl From<Size> for Shape {
-    fn from(size: Size) -> Self {
-        let x = size.width * 0.5;
-        let y = size.height * 0.5;
-        let offset = Vec2::new(-x, -y);
-        Self { offset, size }
+impl From<Size3> for Shape {
+    fn from(size: Size3) -> Self {
+        Self::new(size)
     }
 }
 
@@ -227,8 +335,8 @@ impl From<Size> for Shape {
 pub struct Joint {
     body1: Entity,
     body2: Entity,
-    offset: Vec2,
-    angle: f32,
+    offset: Vec3,
+    angle: Quat,
 }
 
 impl Joint {
@@ -236,17 +344,17 @@ impl Joint {
         Self {
             body1,
             body2,
-            offset: Vec2::zero(),
-            angle: 0.0,
+            offset: Vec3::zero(),
+            angle: Quat::identity(),
         }
     }
 
-    pub fn with_offset(mut self, offset: Vec2) -> Self {
+    pub fn with_offset(mut self, offset: Vec3) -> Self {
         self.offset = offset;
         self
     }
 
-    pub fn with_angle(mut self, angle: f32) -> Self {
+    pub fn with_angle(mut self, angle: Quat) -> Self {
         self.angle = angle;
         self
     }
@@ -255,32 +363,33 @@ impl Joint {
 #[doc(hidden)]
 #[derive(Default, Debug, Clone, Copy)]
 pub struct Solved {
-    fst: bool,
-    snd: bool,
+    x: bool,
+    y: bool,
+    z: bool,
 }
 
 /// The rigid body.
 #[derive(Debug, Clone, Copy)]
 pub struct RigidBody {
     /// Current position of this rigid body.
-    pub position: Vec2,
-    lowest_position: Vec2,
+    pub position: Vec3,
+    lowest_position: Vec3,
     /// Current rotation of this rigid body.
     ///
     /// NOTE: collisions checks may or may not be broken if this is not a multiple of 90 degrees.
-    pub rotation: f32,
+    pub rotation: Quat,
     /// Current linear velocity of this rigid body.
-    pub linvel: Vec2,
-    prev_linvel: Vec2,
+    pub linvel: Vec3,
+    prev_linvel: Vec3,
     /// The terminal linear velocity of a semikinematic body.
     ///
     /// Defaults to `f32::INFINITY`.
-    pub terminal: Vec2,
-    accumulator: Vec2,
-    dynamic_acc: Vec2,
+    pub terminal: Vec3,
+    accumulator: Vec3,
+    dynamic_acc: Vec3,
     /// Current angular velocity of this rigid body.
-    pub angvel: f32,
-    prev_angvel: f32,
+    pub angvel: Quat,
+    prev_angvel: Quat,
     /// The terminal angular velocity of a semikinematic body.
     ///
     /// Defaults to `f32::INFINITY`.
@@ -300,16 +409,16 @@ impl RigidBody {
     /// Returns a new `RigidBody` with just a mass and all other components set to their defaults.
     pub fn new(mass: Mass) -> Self {
         Self {
-            position: Vec2::zero(),
-            lowest_position: Vec2::zero(),
-            rotation: 0.0,
-            linvel: Vec2::zero(),
-            prev_linvel: Vec2::zero(),
-            terminal: Vec2::new(f32::INFINITY, f32::INFINITY),
-            accumulator: Vec2::zero(),
-            dynamic_acc: Vec2::zero(),
-            angvel: 0.0,
-            prev_angvel: 0.0,
+            position: Vec3::zero(),
+            lowest_position: Vec3::zero(),
+            rotation: Quat::identity(),
+            linvel: Vec3::zero(),
+            prev_linvel: Vec3::zero(),
+            terminal: Vec3::new(f32::INFINITY, f32::INFINITY, f32::INFINITY),
+            accumulator: Vec3::zero(),
+            dynamic_acc: Vec3::zero(),
+            angvel: Quat::identity(),
+            prev_angvel: Quat::identity(),
             ang_term: f32::INFINITY,
             status: Status::Semikinematic,
             mass: mass.scalar(),
@@ -321,31 +430,31 @@ impl RigidBody {
     }
 
     /// Returns a `RigidBody` identical to this one, but with the position set to a new one.
-    pub fn with_position(mut self, position: Vec2) -> Self {
+    pub fn with_position(mut self, position: Vec3) -> Self {
         self.position = position;
         self
     }
 
     /// Returns a `RigidBody` identical to this one, but with the rotation set to a new one.
-    pub fn with_rotation(mut self, rotation: f32) -> Self {
+    pub fn with_rotation(mut self, rotation: Quat) -> Self {
         self.rotation = rotation;
         self
     }
 
     /// Returns a `RigidBody` identical to this one, but with the linear velocity set to a new one.
-    pub fn with_linear_velocity(mut self, linvel: Vec2) -> Self {
+    pub fn with_linear_velocity(mut self, linvel: Vec3) -> Self {
         self.linvel = linvel;
         self
     }
 
     /// Returns a `RigidBody` identical to this one, but with the linear velocity set to a new one.
-    pub fn with_angular_velocity(mut self, angvel: f32) -> Self {
+    pub fn with_angular_velocity(mut self, angvel: Quat) -> Self {
         self.angvel = angvel;
         self
     }
 
     /// Returns a `RigidBody` identical to this one, but with the terminal linear velocity set to a new one.
-    pub fn with_terminal(mut self, terminal: Vec2) -> Self {
+    pub fn with_terminal(mut self, terminal: Vec3) -> Self {
         self.terminal = terminal;
         self
     }
@@ -357,7 +466,7 @@ impl RigidBody {
     }
 
     /// Returns a `RigidBody` identical to this one, but with the acceleration set to a new one.
-    pub fn with_acceleration(mut self, acceleration: Vec2) -> Self {
+    pub fn with_acceleration(mut self, acceleration: Vec3) -> Self {
         self.accumulator = acceleration;
         self
     }
@@ -381,17 +490,19 @@ impl RigidBody {
     }
 
     /// Applies an impulse to the `RigidBody`s linear velocity.
-    pub fn apply_linear_impulse(&mut self, impulse: Vec2) {
+    pub fn apply_linear_impulse(&mut self, impulse: Vec3) {
         self.linvel += impulse * self.inv_mass;
     }
 
     /// Applies an impulse to the `RigidBody`s linear velocity.
-    pub fn apply_angular_impulse(&mut self, impulse: f32) {
-        self.angvel += impulse * self.inv_mass;
+    pub fn apply_angular_impulse(&mut self, impulse: Quat) {
+        let (axis, mut angle) = impulse.to_axis_angle();
+        angle *= self.inv_mass;
+        self.angvel *= Quat::from_axis_angle(axis, angle);
     }
 
     /// Applies a force to the `RigidBody`s acceleration accumulator.
-    pub fn apply_force(&mut self, force: Vec2) {
+    pub fn apply_force(&mut self, force: Vec3) {
         self.accumulator += force * self.inv_mass;
     }
 
@@ -432,6 +543,12 @@ impl RigidBody {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct Contact {
+    pub position: Vec3,
+    pub penetration: f32,
+}
+
 /// The manifold, representing detailed data on a collision between two `RigidBody`s.
 ///
 /// Usable as an event.
@@ -441,12 +558,10 @@ pub struct Manifold {
     pub body1: Entity,
     /// The second entity.
     pub body2: Entity,
-    /// The penetration, relative to the second entity.
+    /// The normals, relative to the second entity.
+    pub normal: Vec3,
     pub penetration: f32,
-    /// The normal, relative to the second entity.
-    pub normal: Vec2,
-    /// The contact points of this manifold.
-    pub contacts: SmallVec<[Vec2; 4]>,
+    pub contacts: SmallVec<[Contact; 8]>,
 }
 
 pub fn broad_phase_system(
@@ -458,25 +573,12 @@ pub fn broad_phase_system(
     for (entity, body, children) in &mut query.iter() {
         for &e in children.iter() {
             if let Ok(shape) = query2.get::<Shape>(e) {
-                let v0 = shape.offset;
-                let v1 = shape.offset + Vec2::new(shape.size.width, 0.0);
-                let v2 = shape.offset + Vec2::new(shape.size.width, shape.size.height);
-                let v3 = shape.offset + Vec2::new(0.0, shape.size.height);
-                let rotation = Mat2::from_angle(body.rotation);
-                let position = body.position;
-                let n0 = Vec2::new(1.0, 0.0);
-                let n1 = Vec2::new(0.0, 1.0);
                 let collider = Obb::new(
                     body.status,
                     entity,
-                    rotation,
-                    position,
-                    v0,
-                    v1,
-                    v2,
-                    v3,
-                    n0,
-                    n1,
+                    shape.local,
+                    Transform::from_translation_rotation(body.position, body.rotation),
+                    shape.extent(),
                 );
                 colliders.push(collider);
             }
@@ -499,95 +601,6 @@ impl NarrowPhase {
     }
 }
 
-fn bias_greater_than(a: f32, b: f32) -> bool {
-    const BIAS_RELATIVE: f32 = 0.95;
-    const BIAS_ABSOLUTE: f32 = 0.01;
-    a >= b * BIAS_RELATIVE + a * BIAS_ABSOLUTE
-}
-
-fn find_axis_of_least_penetration(a: &Obb, b: &Obb) -> (f32, usize) {
-    let mut best_distance = f32::MIN;
-    let mut best_index = 0;
-
-    for i in 0..4 {
-        let n = a.normals[i];
-        let nw = a.rotation * n;
-
-        let brt = b.rotation.transpose();
-        let n = brt * nw;
-
-        let s = b.get_support(-n);
-
-        let mut v = a.vertices[i];
-        v = a.rotation * v + a.position;
-        v -= b.position;
-        v = brt * v;
-
-        let d = n.dot(s - v);
-
-        if d > best_distance {
-            best_distance = d;
-            best_index = i;
-        }
-    }
-
-    (best_distance, best_index)
-}
-
-fn find_incident_face(ref_poly: &Obb, inc_poly: &Obb, idx: usize) -> [Vec2; 2] {
-    let mut ref_normal = ref_poly.normals[idx];
-
-    ref_normal = ref_poly.rotation * ref_normal;
-    ref_normal = inc_poly.rotation.transpose() * ref_normal;
-
-    let mut incident_face = 0;
-    let mut min_dot = f32::MAX;
-
-    for i in 0..4 {
-        let dot = ref_normal.dot(inc_poly.normals[i]);
-        if dot < min_dot {
-            min_dot = dot;
-            incident_face = i;
-        }
-    }
-
-    let v0 = inc_poly.rotation * inc_poly.vertices[incident_face] + inc_poly.position;
-    incident_face = (incident_face + 1) & 0x3;
-    let v1 = inc_poly.rotation * inc_poly.vertices[incident_face] + inc_poly.position;
-    [v0, v1]
-}
-
-fn clip(n: Vec2, c: f32, face: &mut [Vec2]) -> usize {
-    let mut sp = 0;
-    let mut out = [face[0], face[1]];
-
-    let d1 = n.dot(face[0]) - c;
-    let d2 = n.dot(face[1]) - c;
-
-    if d1 <= 0.0 {
-        out[sp] = face[0];
-        sp += 1;
-    }
-
-    if d2 <= 0.0 {
-        out[sp] = face[1];
-        sp += 1;
-    }
-
-    if d1 * d2 < 0.0 {
-        let alpha = d1 / (d1 - d2);
-        out[sp] = face[0] + alpha * (face[1] - face[0]);
-        sp += 1;
-    }
-
-    face[0] = out[0];
-    face[1] = out[1];
-
-    debug_assert_ne!(sp, 3);
-
-    sp
-}
-
 fn narrow_phase_system(
     mut state: Local<NarrowPhase>,
     mut manifolds: ResMut<Events<Manifold>>,
@@ -605,91 +618,9 @@ fn narrow_phase_system(
         }
         state.set.insert([collider1.body, collider2.body]);
 
-        let (penetration_a, face_a) = find_axis_of_least_penetration(&collider1, &collider2);
-        if penetration_a >= 0.0 {
-            continue;
+        if let Some(manifold) = collision::box_to_box(&collider1, &collider2) {
+            manifolds.send(manifold);
         }
-
-        let (penetration_b, face_b) = find_axis_of_least_penetration(&collider2, &collider1);
-        if penetration_b >= 0.0 {
-            continue;
-        }
-
-        let mut ref_index;
-        let flip;
-        let ref_poly;
-        let inc_poly;
-
-        if bias_greater_than(penetration_a, penetration_b) {
-            ref_poly = &collider1;
-            inc_poly = &collider2;
-            ref_index = face_a;
-            flip = false;
-        } else {
-            ref_poly = &collider2;
-            inc_poly = &collider1;
-            ref_index = face_b;
-            flip = true;
-        }
-
-        let mut incident_face = find_incident_face(ref_poly, inc_poly, ref_index);
-
-        let mut v1 = ref_poly.vertices[ref_index];
-        ref_index = (ref_index + 1) & 0x3;
-        let mut v2 = ref_poly.vertices[ref_index];
-
-        v1 = ref_poly.rotation * v1 + ref_poly.position;
-        v2 = ref_poly.rotation * v2 + ref_poly.position;
-
-        let side_plane_normal = (v2 - v1).normalize();
-
-        let ref_face_normal = Vec2::new(side_plane_normal.y(), -side_plane_normal.x());
-
-        let refc = ref_face_normal.dot(v1);
-        let negside = -side_plane_normal.dot(v1);
-        let posside = side_plane_normal.dot(v2);
-
-        if clip(-side_plane_normal, negside, &mut incident_face) < 2 {
-            continue;
-        }
-
-        if clip(side_plane_normal, posside, &mut incident_face) < 2 {
-            continue;
-        }
-
-        let normal = if flip {
-            -ref_face_normal
-        } else {
-            ref_face_normal
-        };
-        let mut penetration = 0.0;
-
-        let mut contacts = SmallVec::new();
-
-        let mut cp = 0;
-        let sep = ref_face_normal.dot(incident_face[0]) - refc;
-        if sep <= 0.0 {
-            contacts.push(incident_face[0]);
-            penetration = -sep;
-            cp += 1;
-        }
-
-        let sep = ref_face_normal.dot(incident_face[1]) - refc;
-        if sep <= 0.0 {
-            contacts.push(incident_face[1]);
-            penetration += -sep;
-            cp += 1;
-            penetration /= cp as f32;
-        }
-
-        let manifold = Manifold {
-            body1: collider1.body,
-            body2: collider2.body,
-            penetration,
-            normal,
-            contacts,
-        };
-        manifolds.send(manifold);
     }
 }
 
@@ -710,10 +641,10 @@ fn solve_system(
     mut solver: Local<Solver>,
     time: Res<Time>,
     manifolds: Res<Events<Manifold>>,
-    step: Res<GlobalStep>,
     up: Res<GlobalUp>,
+    step: Res<GlobalStep>,
     ang_tol: Res<AngularTolerance>,
-    query: Query<Mut<RigidBody>>,
+    query: Query<(Mut<RigidBody>, Option<Mut<Up>>)>,
 ) {
     let delta_time = time.delta.as_secs_f32();
 
@@ -751,15 +682,43 @@ fn solve_system(
         match a.status {
             Status::Static => {}
             Status::Semikinematic => {
+                if let Ok(mut local_up) = query.get_mut::<Up>(manifold.body1) {
+                    let angle = up.0.dot(manifold.normal).acos();
+                    if angle >= 0.0 && angle < ang_tol.0 {
+                        local_up.0 = manifold.normal;
+                    }
+                }
+
                 if let Some((impulse, _)) = dynamics {
                     a.dynamic_acc += impulse;
 
-                    let d = -manifold.normal * manifold.penetration;
+                    let d = manifold.normal * manifold.penetration;
                     let v = a.linvel * delta_time;
                     if v.sign() == d.sign() {
                         // nothing
                     } else {
-                        a.linvel *= Vec2::new(manifold.normal.y().abs(), manifold.normal.x().abs());
+                        let c = a.linvel.cross(manifold.normal);
+                        let c = if c.length_squared() <= f32::EPSILON {
+                            Vec3::new(1.0, 1.0, 1.0) - up.0
+                        } else {
+                            let z = if c.x().abs() <= f32::EPSILON {
+                                0.0
+                            } else {
+                                1.0
+                            };
+                            let y = if c.y().abs() <= f32::EPSILON {
+                                0.0
+                            } else {
+                                1.0
+                            };
+                            let x = if c.z().abs() <= f32::EPSILON {
+                                0.0
+                            } else {
+                                1.0
+                            };
+                            Vec3::new(x, y, z)
+                        };
+                        a.linvel *= c;
                         a.position += d;
                     }
                 } else {
@@ -769,7 +728,7 @@ fn solve_system(
                         let up_vector = up.0;
                         if up_vector.length_squared() != 0.0 {
                             for &point in &manifold.contacts {
-                                let d = point - a.lowest_position;
+                                let d = point.position - a.lowest_position;
                                 let s = d.dot(up_vector);
                                 if s < step.0 {
                                     let diff = a.position - a.lowest_position;
@@ -782,13 +741,33 @@ fn solve_system(
                     }
 
                     if solve {
-                        let d = -manifold.normal * manifold.penetration;
+                        let d = manifold.normal * manifold.penetration;
                         let v = a.linvel * delta_time;
                         if v.sign() == d.sign() {
                             // nothing
                         } else {
-                            a.linvel *=
-                                Vec2::new(manifold.normal.y().abs(), manifold.normal.x().abs());
+                            let c = a.linvel.cross(manifold.normal);
+                            let c = if c.length_squared() <= f32::EPSILON {
+                                Vec3::new(1.0, 1.0, 1.0) - up.0
+                            } else {
+                                let z = if c.x().abs() <= f32::EPSILON {
+                                    0.0
+                                } else {
+                                    1.0
+                                };
+                                let y = if c.y().abs() <= f32::EPSILON {
+                                    0.0
+                                } else {
+                                    1.0
+                                };
+                                let x = if c.z().abs() <= f32::EPSILON {
+                                    0.0
+                                } else {
+                                    1.0
+                                };
+                                Vec3::new(x, y, z)
+                            };
+                            a.linvel *= c;
                             a.position += d;
                         }
                     }
@@ -801,15 +780,43 @@ fn solve_system(
         match b.status {
             Status::Static => {}
             Status::Semikinematic => {
+                if let Ok(mut local_up) = query.get_mut::<Up>(manifold.body2) {
+                    let angle = up.0.dot(manifold.normal).acos();
+                    if angle >= 0.0 && angle < ang_tol.0 {
+                        local_up.0 = manifold.normal;
+                    }
+                }
+
                 if let Some((_, impulse)) = dynamics {
                     b.dynamic_acc += impulse;
 
-                    let d = manifold.normal * manifold.penetration;
+                    let d = -manifold.normal * manifold.penetration;
                     let v = b.linvel * delta_time;
                     if v.sign() == d.sign() {
                         // nothing
                     } else {
-                        b.linvel *= Vec2::new(manifold.normal.y().abs(), manifold.normal.x().abs());
+                        let c = b.linvel.cross(manifold.normal);
+                        let c = if c.length_squared() <= f32::EPSILON {
+                            Vec3::new(1.0, 1.0, 1.0) - up.0
+                        } else {
+                            let z = if c.x().abs() <= f32::EPSILON {
+                                0.0
+                            } else {
+                                1.0
+                            };
+                            let y = if c.y().abs() <= f32::EPSILON {
+                                0.0
+                            } else {
+                                1.0
+                            };
+                            let x = if c.z().abs() <= f32::EPSILON {
+                                0.0
+                            } else {
+                                1.0
+                            };
+                            Vec3::new(x, y, z)
+                        };
+                        b.linvel *= c;
                         b.position += d;
                     }
                 } else {
@@ -819,7 +826,7 @@ fn solve_system(
                         let up_vector = up.0;
                         if up_vector.length_squared() != 0.0 {
                             for &point in &manifold.contacts {
-                                let d = point - b.lowest_position;
+                                let d = point.position - b.lowest_position;
                                 let s = d.dot(up_vector);
                                 if s < step.0 {
                                     let diff = b.position - b.lowest_position;
@@ -832,13 +839,33 @@ fn solve_system(
                     }
 
                     if solve {
-                        let d = manifold.normal * manifold.penetration;
+                        let d = -manifold.normal * manifold.penetration;
                         let v = b.linvel * delta_time;
                         if v.sign() == d.sign() {
                             // nothing
                         } else {
-                            b.linvel *=
-                                Vec2::new(manifold.normal.y().abs(), manifold.normal.x().abs());
+                            let c = b.linvel.cross(manifold.normal);
+                            let c = if c.length_squared() <= f32::EPSILON {
+                                Vec3::new(1.0, 1.0, 1.0) - up.0
+                            } else {
+                                let z = if c.x().abs() <= f32::EPSILON {
+                                    0.0
+                                } else {
+                                    1.0
+                                };
+                                let y = if c.y().abs() <= f32::EPSILON {
+                                    0.0
+                                } else {
+                                    1.0
+                                };
+                                let x = if c.z().abs() <= f32::EPSILON {
+                                    0.0
+                                } else {
+                                    1.0
+                                };
+                                Vec3::new(x, y, z)
+                            };
+                            b.linvel *= c;
                             b.position += d;
                         }
                     }
@@ -872,9 +899,8 @@ fn physics_step_system(
     time: Res<Time>,
     friction: Res<GlobalFriction>,
     gravity: Res<GlobalGravity>,
-    up: Res<GlobalUp>,
-    mut query: Query<(Mut<RigidBody>, &Children)>,
-    shapes: Query<&Shape>,
+    global_up: Res<GlobalUp>,
+    mut query: Query<(Mut<RigidBody>, Option<(&Up, &UpRotation)>)>,
 ) {
     if state.skip > 0 {
         state.skip -= 1;
@@ -883,7 +909,7 @@ fn physics_step_system(
 
     let delta_time = time.delta.as_secs_f32();
 
-    for (mut body, children) in &mut query.iter() {
+    for (mut body, local_up) in &mut query.iter() {
         if !body.active {
             continue;
         }
@@ -895,8 +921,8 @@ fn physics_step_system(
         let linvel = body.linvel + body.accumulator * delta_time;
         let linvel = linvel + body.dynamic_acc;
         body.linvel = linvel;
-        body.accumulator = Vec2::zero();
-        body.dynamic_acc = Vec2::zero();
+        body.accumulator = Vec3::zero();
+        body.dynamic_acc = Vec3::zero();
 
         if matches!(body.status, Status::Semikinematic) {
             let vel = body.linvel;
@@ -913,136 +939,74 @@ fn physics_step_system(
                 Some(Ordering::Equal) => {}
                 None => *body.linvel.y_mut() = 0.0,
             }
+            match vel.z().partial_cmp(&0.0) {
+                Some(Ordering::Less) => *body.linvel.z_mut() = vel.z().max(-limit.z()),
+                Some(Ordering::Greater) => *body.linvel.z_mut() = vel.z().min(limit.z()),
+                Some(Ordering::Equal) => {}
+                None => *body.linvel.z_mut() = 0.0,
+            }
             let vel = body.angvel;
             let limit = body.ang_term;
-            match vel.partial_cmp(&0.0) {
-                Some(Ordering::Less) => body.angvel = vel.max(-limit),
-                Some(Ordering::Greater) => body.angvel = vel.min(limit),
+            let (axis, mut angle) = vel.to_axis_angle();
+            match vel.w().partial_cmp(&0.0) {
+                Some(Ordering::Less) => {
+                    angle = angle.max(-limit);
+                    body.angvel = Quat::from_axis_angle(axis, angle);
+                }
+                Some(Ordering::Greater) => {
+                    angle = angle.min(limit);
+                    body.angvel = Quat::from_axis_angle(axis, angle);
+                }
                 Some(Ordering::Equal) => {}
-                None => body.angvel = 0.0,
+                None => body.angvel = Quat::identity(),
             }
         }
 
         let position = body.position + body.linvel * delta_time;
         body.position = position;
 
-        let rotation = body.rotation + body.angvel * delta_time;
-        body.rotation = rotation;
+        let (axis, mut angle) = body.angvel.to_axis_angle();
+        angle *= delta_time;
+        if let Some((local_up, up_rotation)) = local_up {
+            let mut axis = local_up.0 * axis;
+            if axis.length_squared() <= f32::EPSILON {
+                axis = Vec3::new(0.0, 1.0, 0.0);
+            }
+            let rotation = Quat::from_axis_angle(axis, angle + up_rotation.0);
+            let angle = local_up.0.quat_between(global_up.0);
+            body.rotation = (rotation * angle).normalize();
+        } else {
+            let rotation = body.rotation * Quat::from_axis_angle(axis, angle);
+            body.rotation = rotation.normalize();
+        }
 
         match body.status {
             Status::Semikinematic => {
                 if body.linvel.x().abs() <= body.prev_linvel.x().abs() {
-                    *body.linvel.x_mut() *= friction.0
+                    *body.linvel.x_mut() *= friction.0;
                 }
                 if body.linvel.y().abs() <= body.prev_linvel.y().abs() {
-                    *body.linvel.y_mut() *= friction.0
+                    *body.linvel.y_mut() *= friction.0;
                 }
-                if body.angvel.abs() <= body.prev_angvel.abs() {
-                    body.angvel *= friction.0
+                if body.linvel.z().abs() <= body.prev_linvel.z().abs() {
+                    *body.linvel.z_mut() *= friction.0;
+                }
+                if body.angvel.w().abs() <= body.prev_angvel.w().abs() {
+                    let (axis, mut angle) = body.angvel.to_axis_angle();
+                    angle *= friction.0;
+                    body.angvel = Quat::from_axis_angle(axis, angle);
                 }
             }
             Status::Static => {}
         }
         body.prev_linvel = body.linvel;
         body.prev_angvel = body.angvel;
-
-        for &child in children.iter() {
-            if let Ok(shape) = shapes.get::<Shape>(child) {
-                let v0 = shape.offset;
-                let v1 = shape.offset + Vec2::new(shape.size.width, 0.0);
-                let v2 = shape.offset + Vec2::new(shape.size.width, shape.size.height);
-                let v3 = shape.offset + Vec2::new(0.0, shape.size.height);
-                let rotation = Mat2::from_angle(body.rotation);
-                let position = body.position;
-                let v0 = rotation * v0;
-                let v1 = rotation * v1;
-                let v2 = rotation * v2;
-                let v3 = rotation * v3;
-                let s0 = v0.dot(up.0);
-                let s1 = v1.dot(up.0);
-                let s2 = v2.dot(up.0);
-                let s3 = v3.dot(up.0);
-                let v = [v0, v1, v2, v3];
-                let s = [s0, s1, s2, s3];
-                let min = s0.min(s1).min(s2).min(s3);
-                let mut lowest_point = Vec2::zero();
-                let mut count = 0;
-                for (&v, &s) in v.iter().zip(&s) {
-                    if s == min {
-                        lowest_point += v;
-                        count += 1;
-                    }
-                }
-                body.lowest_position = position + lowest_point / count as f32;
-            }
-        }
     }
 }
 
-/// The plane on which to translate the 2d position into 3d coordinates.
-#[derive(Debug, Clone, Copy)]
-pub enum TranslationMode {
-    AxesXY,
-    AxesXZ,
-    AxesYZ,
-}
-
-impl Default for TranslationMode {
-    fn default() -> Self {
-        Self::AxesXY
-    }
-}
-
-/// The axis on which to rotate the 2d rotation into a 3d quaternion.
-#[derive(Debug, Clone, Copy)]
-pub enum RotationMode {
-    AxisX,
-    AxisY,
-    AxisZ,
-}
-
-impl Default for RotationMode {
-    fn default() -> Self {
-        Self::AxisZ
-    }
-}
-
-pub fn sync_transform_system(
-    translation_mode: Res<TranslationMode>,
-    rotation_mode: Res<RotationMode>,
-    mut query: Query<(&RigidBody, Mut<Transform>)>,
-) {
+pub fn sync_transform_system(mut query: Query<(&RigidBody, Mut<Transform>)>) {
     for (body, mut transform) in &mut query.iter() {
-        match *translation_mode {
-            TranslationMode::AxesXY => {
-                let x = body.position.x();
-                let y = body.position.y();
-                let z = 0.0;
-                transform.set_translation(Vec3::new(x, y, z));
-            }
-            TranslationMode::AxesXZ => {
-                let x = body.position.x();
-                let y = 0.0;
-                let z = body.position.y();
-                transform.set_translation(Vec3::new(x, y, z));
-            }
-            TranslationMode::AxesYZ => {
-                let x = 0.0;
-                let y = body.position.x();
-                let z = body.position.y();
-                transform.set_translation(Vec3::new(x, y, z));
-            }
-        }
-        match *rotation_mode {
-            RotationMode::AxisX => {
-                transform.set_rotation(Quat::from_rotation_x(body.rotation));
-            }
-            RotationMode::AxisY => {
-                transform.set_rotation(Quat::from_rotation_y(body.rotation));
-            }
-            RotationMode::AxisZ => {
-                transform.set_rotation(Quat::from_rotation_z(body.rotation));
-            }
-        }
+        transform.set_translation(body.position);
+        transform.set_rotation(body.rotation);
     }
 }
