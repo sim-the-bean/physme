@@ -99,8 +99,10 @@ pub mod prelude2d {
     //! simulation.
     pub use crate::common::{GlobalFriction, Mass, Status};
     pub use crate::dim2::{
-        AngularTolerance, BroadPhase, GlobalGravity, GlobalStep, GlobalUp, Joint, Manifold,
-        Physics2dPlugin, RigidBody, RotationMode, Shape, TranslationMode,
+        AngularTolerance, BroadPhase, FixedJoint, FixedJointBehaviour, GlobalGravity, GlobalStep,
+        GlobalUp, JointBehaviour, Manifold, MechanicalJoint, MechanicalJointBehaviour,
+        Physics2dPlugin, RigidBody, RotationMode, Shape, SpringJoint, SpringJointBehaviour,
+        TranslationMode,
     };
 }
 
@@ -109,7 +111,9 @@ pub mod prelude3d {
     //! simulation.
     pub use crate::common::{GlobalFriction, Mass, Status, Vec3Ext};
     pub use crate::dim3::{
-        AngularTolerance, BroadPhase, GlobalGravity, GlobalStep, GlobalUp, Joint, Manifold,
-        Physics3dPlugin, RigidBody, Shape, Size3, Up, UpRotation,
+        AngularTolerance, BroadPhase, FixedJoint, FixedJointBehaviour, GlobalGravity, GlobalStep,
+        GlobalUp, Joint, JointBehaviour, Manifold, MechanicalJoint, MechanicalJointBehaviour,
+        Physics3dPlugin, RigidBody, Shape, Size3, SpringJoint, SpringJointBehaviour, Up,
+        UpRotation,
     };
 }

@@ -39,6 +39,8 @@ fn setup(
     let bigcube = meshes.add(shape::Cube { size: 8.0 }.into());
     let smallcube = meshes.add(shape::Cube { size: 0.2 }.into());
     let mut camera = None;
+    let mut anchor = None;
+    let mut target = None;
     commands
         .spawn(LightComponents {
             transform: Transform::from_translation(Vec3::new(0.0, 5.0, 5.0)),
@@ -71,6 +73,24 @@ fn setup(
         .with_children(|parent| {
             parent.spawn((Shape::from(Size3::new(1.0, 1.0, 1.0)),));
         })
+        .for_current_entity(|e| anchor = Some(e))
+        .spawn(PbrComponents {
+            mesh: smallcube,
+            material: materials.add(Color::rgb(1.0, 1.0, 1.0).into()),
+            ..Default::default()
+        })
+        .with(
+            RigidBody::new(Mass::Real(0.5))
+                .with_status(Status::Semikinematic)
+                .with_position(Vec3::new(10.0, 10.0, 10.0)),
+        )
+        .with_children(|parent| {
+            parent.spawn((Shape::from(Size3::new(0.2, 0.2, 0.2)),));
+        })
+        .for_current_entity(|e| target = Some(e))
+        .spawn((SpringJoint::new(anchor.unwrap(), target.unwrap())
+            .with_rigidness(0.5)
+            .with_offset(Vec3::new(2.0, 2.0, 0.0)),))
         .spawn(PbrComponents {
             mesh: cube,
             material: materials.add(Color::rgb(1.0, 1.0, 1.0).into()),

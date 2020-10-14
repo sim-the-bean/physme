@@ -22,10 +22,12 @@ pub mod stage {
     #[doc(hidden)]
     pub use bevy::prelude::stage::*;
 
+    pub const COLLIDING_JOINT: &str = "colliding_joint_3d";
     pub const PHYSICS_STEP: &str = "physics_step_3d";
     pub const BROAD_PHASE: &str = "broad_phase_3d";
     pub const NARROW_PHASE: &str = "narrow_phase_3d";
     pub const PHYSICS_SOLVE: &str = "physics_solve_3d";
+    pub const RIGID_JOINT: &str = "rigid_join_3d";
     pub const SYNC_TRANSFORM: &str = "sync_transform_3d";
 }
 
@@ -38,17 +40,31 @@ impl Plugin for Physics3dPlugin {
             .add_resource(AngularTolerance::default())
             .add_event::<Manifold>()
             .add_stage_before(stage::UPDATE, stage::PHYSICS_STEP)
+            .add_stage_before(stage::PHYSICS_STEP, stage::COLLIDING_JOINT)
             .add_stage_after(stage::PHYSICS_STEP, stage::BROAD_PHASE)
             .add_stage_after(stage::BROAD_PHASE, stage::NARROW_PHASE)
             .add_stage_after(stage::NARROW_PHASE, stage::PHYSICS_SOLVE)
-            .add_stage_after(stage::PHYSICS_SOLVE, stage::SYNC_TRANSFORM);
+            .add_stage_after(stage::PHYSICS_SOLVE, stage::RIGID_JOINT)
+            .add_stage_after(stage::RIGID_JOINT, stage::SYNC_TRANSFORM);
         let physics_step = PhysicsStep::default().system(app.resources_mut());
         app.add_system_to_stage(stage::PHYSICS_STEP, physics_step)
             .add_system_to_stage(stage::BROAD_PHASE, broad_phase_system.system())
             .add_system_to_stage(stage::NARROW_PHASE, narrow_phase_system.system());
         let solver = Solver::default().system(app.resources_mut());
         app.add_system_to_stage(stage::PHYSICS_SOLVE, solver)
-            .add_system_to_stage(stage::SYNC_TRANSFORM, sync_transform_system.system());
+            .add_system_to_stage(stage::SYNC_TRANSFORM, sync_transform_system.system())
+            .add_system_to_stage(
+                FixedJointBehaviour::STAGE,
+                joint_system::<FixedJointBehaviour>.system(),
+            )
+            .add_system_to_stage(
+                MechanicalJointBehaviour::STAGE,
+                joint_system::<MechanicalJointBehaviour>.system(),
+            )
+            .add_system_to_stage(
+                SpringJointBehaviour::STAGE,
+                joint_system::<SpringJointBehaviour>.system(),
+            );
     }
 }
 
@@ -332,14 +348,14 @@ impl From<Size3> for Shape {
 
 #[doc(hidden)]
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Joint {
+pub struct InnerJoint {
     body1: Entity,
     body2: Entity,
     offset: Vec3,
     angle: Quat,
 }
 
-impl Joint {
+impl InnerJoint {
     pub fn new(body1: Entity, body2: Entity) -> Self {
         Self {
             body1,
@@ -360,12 +376,262 @@ impl Joint {
     }
 }
 
-#[doc(hidden)]
-#[derive(Default, Debug, Clone, Copy)]
-pub struct Solved {
-    x: bool,
-    y: bool,
-    z: bool,
+/// Defines a set of behaviours on how joints should move the anchored body relative to the anchor.
+pub trait JointBehaviour: Send + Sync + 'static {
+    const STAGE: &'static str = stage::COLLIDING_JOINT;
+
+    /// Returns a new position for target based on `self` and `anchor`.
+    fn position(
+        &mut self,
+        _offset: Vec3,
+        _anchor: &RigidBody,
+        _target: &RigidBody,
+    ) -> Option<Vec3> {
+        None
+    }
+
+    /// Returns a new rotation for target based on `self` and `anchor`.
+    fn rotation(&mut self, _angle: Quat, _anchor: &RigidBody, _target: &RigidBody) -> Option<Quat> {
+        None
+    }
+
+    /// Returns a new linear velocity for target based on `self` and `anchor`.
+    fn linear_velocity(
+        &mut self,
+        _offset: Vec3,
+        _anchor: &RigidBody,
+        _target: &RigidBody,
+    ) -> Option<Vec3> {
+        None
+    }
+
+    /// Returns a new angular velocity for target based on `self` and `anchor`.
+    fn angular_velocity(
+        &mut self,
+        _angle: Quat,
+        _anchor: &RigidBody,
+        _target: &RigidBody,
+    ) -> Option<Quat> {
+        None
+    }
+
+    /// Returns a linear impulse to apply to target based on `self` and `anchor`.
+    fn linear_impulse(
+        &mut self,
+        _offset: Vec3,
+        _anchor: &RigidBody,
+        _target: &RigidBody,
+    ) -> Option<Vec3> {
+        None
+    }
+
+    /// Returns an angular impulse to apply to target based on `self` and `anchor`.
+    fn angular_impulse(
+        &mut self,
+        _angle: Quat,
+        _anchor: &RigidBody,
+        _target: &RigidBody,
+    ) -> Option<Quat> {
+        None
+    }
+}
+
+/// A joint behaviour that causes the anchored body to be rigidly fixed at an offset and an angle.
+#[derive(Default, Debug, Clone, Copy, PartialEq)]
+pub struct FixedJointBehaviour;
+
+impl JointBehaviour for FixedJointBehaviour {
+    const STAGE: &'static str = stage::RIGID_JOINT;
+
+    fn position(&mut self, offset: Vec3, anchor: &RigidBody, _target: &RigidBody) -> Option<Vec3> {
+        Some(anchor.position + offset)
+    }
+
+    fn rotation(&mut self, angle: Quat, anchor: &RigidBody, _target: &RigidBody) -> Option<Quat> {
+        Some(anchor.rotation * angle)
+    }
+}
+
+/// A joint behaviour that causes the anchored body to be accurately positioned with an offset and an angle.
+#[derive(Default, Debug, Clone, Copy, PartialEq)]
+pub struct MechanicalJointBehaviour;
+
+impl JointBehaviour for MechanicalJointBehaviour {
+    const STAGE: &'static str = stage::COLLIDING_JOINT;
+
+    fn position(&mut self, offset: Vec3, anchor: &RigidBody, _target: &RigidBody) -> Option<Vec3> {
+        Some(anchor.position + offset)
+    }
+
+    fn rotation(&mut self, angle: Quat, anchor: &RigidBody, _target: &RigidBody) -> Option<Quat> {
+        Some(anchor.rotation * angle)
+    }
+
+    fn linear_velocity(
+        &mut self,
+        _offset: Vec3,
+        _anchor: &RigidBody,
+        _target: &RigidBody,
+    ) -> Option<Vec3> {
+        Some(Vec3::zero())
+    }
+
+    fn angular_velocity(
+        &mut self,
+        _angle: Quat,
+        _anchor: &RigidBody,
+        _target: &RigidBody,
+    ) -> Option<Quat> {
+        Some(Quat::identity())
+    }
+}
+
+/// A joint behaviour that will move the anchored body into a position and angle relative to the anchor over time.
+#[derive(Default, Debug, Clone, Copy, PartialEq)]
+pub struct SpringJointBehaviour {
+    rigidness: f32,
+}
+
+impl SpringJointBehaviour {
+    /// Create a new SpringJointBehaviour with an exact rigidness value.
+    ///
+    /// Rigidness describes how "snappy" the spring joint is. When it's at 0.0,
+    /// the anchored body will "jump" into position softly over one second.
+    /// When it's at 1.0, the anchored body will "jump" into position almost instantaenously.
+    pub fn new(rigidness: f32) -> Option<SpringJointBehaviour> {
+        if rigidness < 0.0 || rigidness >= 1.0 {
+            None
+        } else {
+            Some(Self { rigidness })
+        }
+    }
+
+    pub fn new_lossy(rigidness: f32) -> SpringJointBehaviour {
+        Self {
+            rigidness: rigidness.max(0.0).min(1.0),
+        }
+    }
+}
+
+impl JointBehaviour for SpringJointBehaviour {
+    const STAGE: &'static str = stage::COLLIDING_JOINT;
+
+    fn linear_velocity(
+        &mut self,
+        _offset: Vec3,
+        _anchor: &RigidBody,
+        _target: &RigidBody,
+    ) -> Option<Vec3> {
+        Some(Vec3::zero())
+    }
+
+    fn angular_velocity(
+        &mut self,
+        _angle: Quat,
+        _anchor: &RigidBody,
+        _target: &RigidBody,
+    ) -> Option<Quat> {
+        Some(Quat::identity())
+    }
+
+    fn linear_impulse(
+        &mut self,
+        offset: Vec3,
+        anchor: &RigidBody,
+        target: &RigidBody,
+    ) -> Option<Vec3> {
+        // the minimum time to "jump" into position
+        const EPSILON: f32 = 0.1;
+        // the maximum time to "jump" into position
+        const T: f32 = 1.0;
+        let springiness = 1.0 - self.rigidness;
+        let position = anchor.position + offset;
+        let d = position - target.position;
+        let scale = (T - EPSILON) * springiness + EPSILON;
+        let impulse = d * target.mass / scale;
+        Some(impulse)
+    }
+
+    fn angular_impulse(
+        &mut self,
+        angle: Quat,
+        anchor: &RigidBody,
+        target: &RigidBody,
+    ) -> Option<Quat> {
+        // the minimum time to "jump" into position
+        const EPSILON: f32 = 0.1;
+        // the maximum time to "jump" into position
+        const T: f32 = 1.0;
+        let springiness = 1.0 - self.rigidness;
+        let rotation = anchor.rotation * angle;
+        let d = rotation * target.rotation.conjugate();
+        let scale = (T - EPSILON) * springiness + EPSILON;
+        let (axis, mut angle) = d.to_axis_angle();
+        angle *= target.mass / scale;
+        let impulse = Quat::from_axis_angle(axis, angle).normalize();
+        Some(impulse)
+    }
+}
+
+/// Allows one `RigidBody` to be anchored at another one
+/// in a fixed way, along with a local offset and angle.
+pub type FixedJoint = Joint<FixedJointBehaviour>;
+
+/// Allows one `RigidBody` to be anchored at another one
+/// in a physically accurate way, along with a local offset and angle.
+pub type MechanicalJoint = Joint<MechanicalJointBehaviour>;
+
+/// Allows one `RigidBody` to be anchored at another one
+/// in a spring-y way, along with a local offset and angle.
+pub type SpringJoint = Joint<SpringJointBehaviour>;
+
+impl SpringJoint {
+    /// Add a rigidness value to an owned `Joint`.
+    pub fn with_rigidness(mut self, rigidness: f32) -> Self {
+        self.behaviour.rigidness = rigidness.max(0.0).min(1.0);
+        self
+    }
+}
+
+/// Allows one `RigidBody` to be anchored at another one
+/// in a pre-defined way, along with a local offset and angle.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Joint<B> {
+    inner: InnerJoint,
+    behaviour: B,
+}
+
+impl<B: JointBehaviour + Default> Joint<B> {
+    /// Create a new joint, where the second body shall be anchored at the first body.
+    pub fn new(body1: Entity, body2: Entity) -> Self {
+        Self::with_behaviour(body1, body2, B::default())
+    }
+}
+
+impl<B: JointBehaviour> Joint<B> {
+    /// Create a new joint, where the second body shall be anchored at the first body.
+    pub fn with_behaviour(body1: Entity, body2: Entity, behaviour: B) -> Self {
+        Self {
+            inner: InnerJoint::new(body1, body2),
+            behaviour,
+        }
+    }
+
+    /// Add an offset to an owned `Joint`.
+    pub fn with_offset(self, offset: Vec3) -> Self {
+        Self {
+            inner: self.inner.with_offset(offset),
+            behaviour: self.behaviour,
+        }
+    }
+
+    /// Add an angle to an owned `Joint`.
+    pub fn with_angle(self, angle: Quat) -> Self {
+        Self {
+            inner: self.inner.with_angle(angle),
+            behaviour: self.behaviour,
+        }
+    }
 }
 
 /// The rigid body.
@@ -402,7 +668,6 @@ pub struct RigidBody {
     inv_mass: f32,
     active: bool,
     sensor: bool,
-    solved: Solved,
 }
 
 impl RigidBody {
@@ -425,7 +690,6 @@ impl RigidBody {
             inv_mass: mass.inverse(),
             active: true,
             sensor: false,
-            solved: Default::default(),
         }
     }
 
@@ -1001,6 +1265,64 @@ fn physics_step_system(
         }
         body.prev_linvel = body.linvel;
         body.prev_angvel = body.angvel;
+    }
+}
+
+pub fn joint_system<B: JointBehaviour>(
+    mut commands: Commands,
+    mut query: Query<(Entity, Mut<Joint<B>>)>,
+    bodies: Query<Mut<RigidBody>>,
+) {
+    for (e, mut joint) in &mut query.iter() {
+        let anchor = if let Ok(anchor) = bodies.get::<RigidBody>(joint.inner.body1) {
+            anchor
+        } else {
+            commands.despawn_recursive(e);
+            continue;
+        };
+        let target = if let Ok(target) = bodies.get::<RigidBody>(joint.inner.body2) {
+            target
+        } else {
+            commands.despawn_recursive(e);
+            continue;
+        };
+        let offset = joint.inner.offset;
+        let angle = joint.inner.angle;
+        let position = joint.behaviour.position(offset, &anchor, &target);
+        let rotation = joint.behaviour.rotation(angle, &anchor, &target);
+        let linvel = joint.behaviour.linear_velocity(offset, &anchor, &target);
+        let angvel = joint.behaviour.angular_velocity(angle, &anchor, &target);
+        let linimp = joint.behaviour.linear_impulse(offset, &anchor, &target);
+        let angimp = joint.behaviour.angular_impulse(angle, &anchor, &target);
+
+        mem::drop(anchor);
+        mem::drop(target);
+
+        let mut target = bodies.get_mut::<RigidBody>(joint.inner.body2).unwrap();
+
+        if let Some(position) = position {
+            target.position = position;
+        }
+
+        if let Some(rotation) = rotation {
+            target.rotation = rotation;
+        }
+
+        if let Some(linvel) = linvel {
+            target.linvel = linvel;
+        }
+
+        if let Some(angvel) = angvel {
+            target.angvel = angvel;
+        }
+
+        if let Some(linimp) = linimp {
+            target.apply_linear_impulse(linimp);
+        }
+
+        if let Some(angimp) = angimp {
+            target.apply_angular_impulse(angimp);
+        }
     }
 }
 

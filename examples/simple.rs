@@ -30,6 +30,8 @@ fn setup(
     let icon = asset_server.load("assets/icon.png").unwrap();
     let plat = asset_server.load("assets/platform.png").unwrap();
     let square = asset_server.load("assets/square.png").unwrap();
+    let mut anchor = None;
+    let mut target = None;
     commands
         .spawn(Camera2dComponents::default())
         .spawn(SpriteComponents {
@@ -47,6 +49,7 @@ fn setup(
         .with_children(|parent| {
             parent.spawn((Shape::from(Size::new(28.0, 28.0)),));
         })
+        .for_current_entity(|e| anchor = Some(e))
         .spawn(SpriteComponents {
             material: materials.add(plat.into()),
             ..Default::default()
@@ -131,7 +134,23 @@ fn setup(
         )
         .with_children(|parent| {
             parent.spawn((Shape::from(Size::new(20.0, 20.0)),));
-        });
+        })
+        .spawn(SpriteComponents {
+            material: materials.add(square.into()),
+            ..Default::default()
+        })
+        .with(
+            RigidBody::new(Mass::Real(1.0))
+                .with_status(Status::Semikinematic)
+                .with_position(Vec2::new(100.0, 100.0)),
+        )
+        .with_children(|parent| {
+            parent.spawn((Shape::from(Size::new(20.0, 20.0)),));
+        })
+        .for_current_entity(|e| target = Some(e))
+        .spawn((
+            SpringJoint::new(anchor.unwrap(), target.unwrap()).with_offset(Vec2::new(30.0, 30.0)),
+        ));
 }
 
 #[derive(Default)]
