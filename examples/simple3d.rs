@@ -1,31 +1,6 @@
 use bevy::prelude::*;
 use physme::prelude3d::*;
 
-trait QuatExt {
-    fn to_rotation_ypr(&self) -> (f32, f32, f32);
-}
-
-impl QuatExt for Quat {
-    fn to_rotation_ypr(&self) -> (f32, f32, f32) {
-        let sinr_cosp = 2.0 * (self.w() * self.x() + self.y() * self.z());
-        let cosr_cosp = 1.0 - 2.0 * (self.x() * self.x() + self.y() * self.y());
-
-        let roll = sinr_cosp.atan2(cosr_cosp);
-
-        let sinp = 2.0 * (self.w() * self.y() - self.z() * self.x());
-        let pitch = if sinp.abs() >= 1.0 {
-            std::f32::consts::PI * sinp.signum()
-        } else {
-            sinp.asin()
-        };
-
-        let siny_cosp = 2.0 * (self.w() * self.z() + self.x() * self.y());
-        let cosy_cosp = 1.0 - 2.0 * (self.y() * self.y() + self.z() * self.z());
-        let yaw = siny_cosp.atan2(cosy_cosp);
-        (roll, pitch, yaw)
-    }
-}
-
 pub struct CharacterController {
     on_ground: bool,
     jump: bool,
@@ -182,26 +157,10 @@ fn character_system(
         if angle >= 0.0 && angle < ang_tol.0 {
             if let Ok(mut controller) = query.get_mut::<CharacterController>(manifold.body1) {
                 controller.on_ground = true;
-
-                // let mut body = query.get_mut::<RigidBody>(manifold.body1).unwrap();
-                // let angle = controller.up.quat_between(manifold.normal);
-                // let (axis, angle) = angle.to_axis_angle();
-                // let angle = Quat::from_axis_angle(-axis, angle * 0.5).normalize();
-                // body.rotation *= angle;
-
-                // controller.up = manifold.normal;
             }
         } else if angle2 >= 0.0 && angle2 < ang_tol.0 {
             if let Ok(mut controller) = query.get_mut::<CharacterController>(manifold.body2) {
                 controller.on_ground = true;
-
-                // let mut body = query.get_mut::<RigidBody>(manifold.body2).unwrap();
-                // let angle = controller.up.quat_between(manifold.normal);
-                // let (axis, angle) = angle.to_axis_angle();
-                // let angle = Quat::from_axis_angle(-axis, angle * 0.5).normalize();
-                // body.rotation *= angle;
-
-                // controller.up = -manifold.normal;
             }
         }
     }
@@ -217,10 +176,10 @@ fn character_system(
             }
         }
         if input.pressed(KeyCode::Q) {
-            rotation.0 += 0.2 * delta_time;
+            rotation.0 += 1.0 * delta_time;
         }
         if input.pressed(KeyCode::E) {
-            rotation.0 -= 0.2 * delta_time;
+            rotation.0 -= 1.0 * delta_time;
         }
         if input.pressed(KeyCode::W) {
             let impulse = body.rotation * Vec3::new(0.0, 0.0, -0.5);
@@ -240,7 +199,7 @@ fn character_system(
         }
         controller.on_ground = false;
 
-        let (_, pitch, _) = body.rotation.to_rotation_ypr();
+        let pitch = rotation.0;
         if let Ok(mut transform) = camera.get_mut::<Transform>(controller.camera) {
             transform.set_translation(body.position);
             transform.set_rotation(Quat::from_rotation_y(pitch));
