@@ -1,7 +1,8 @@
 //! Commmon type definitions for 2d and 3d physics simulation.
 use std::num::FpCategory;
 
-use bevy::math::*;
+use bevy::prelude::*;
+use serde::{Deserialize, Serialize};
 
 /// Extensions to the Bevy `Vec3` type
 pub trait Vec3Ext {
@@ -33,7 +34,7 @@ impl Default for GlobalFriction {
 }
 
 /// The mass of the object or an infinite mass.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Property)]
 pub enum Mass {
     /// Infinite mass (useful for immobile static objects).
     Infinite,
@@ -69,7 +70,7 @@ impl From<f32> for Mass {
 }
 
 /// The status of a `RigidBody`
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Property)]
 pub enum Status {
     /// Static bodies do not check for collisions.
     ///

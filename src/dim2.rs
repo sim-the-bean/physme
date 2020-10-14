@@ -8,6 +8,7 @@ use std::mem;
 use bevy::math::*;
 use bevy::prelude::*;
 use hashbrown::HashSet;
+use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
 use crate::broad::{self, BoundingBox, Collider};
@@ -206,18 +207,32 @@ impl Collider for Obb {
     }
 }
 
+/// The two dimensional size of a `Shape`
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Property)]
+pub struct Size2 {
+    pub width: f32,
+    pub height: f32,
+}
+
+impl Size2 {
+    /// Returns a new 2d size.
+    pub fn new(width: f32, height: f32) -> Self {
+        Self { width, height }
+    }
+}
+
 /// The shape of a rigid body.
 ///
 /// Contains a rotation/translation offset and a size.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Properties)]
 pub struct Shape {
     offset: Vec2,
-    size: Size,
+    size: Size2,
 }
 
 impl Shape {
     /// Return a new `Shape` with a zero offset and a size.
-    pub fn new(size: Size) -> Self {
+    pub fn new(size: Size2) -> Self {
         let offset = Vec2::zero();
         Self { offset, size }
     }
@@ -229,8 +244,8 @@ impl Shape {
     }
 }
 
-impl From<Size> for Shape {
-    fn from(size: Size) -> Self {
+impl From<Size2> for Shape {
+    fn from(size: Size2) -> Self {
         let x = size.width * 0.5;
         let y = size.height * 0.5;
         let offset = Vec2::new(-x, -y);
@@ -486,7 +501,7 @@ impl SpringJoint {
 /// Allows one `RigidBody` to be anchored at another one
 /// in a pre-defined way, along with a local offset and angle.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Joint<B> {
+pub struct Joint<B: JointBehaviour> {
     inner: InnerJoint,
     behaviour: B,
 }
@@ -525,7 +540,7 @@ impl<B: JointBehaviour> Joint<B> {
 }
 
 /// The rigid body.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Properties)]
 pub struct RigidBody {
     /// Current position of this rigid body.
     pub position: Vec2,

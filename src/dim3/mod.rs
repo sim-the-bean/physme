@@ -8,6 +8,7 @@ use std::mem;
 use bevy::math::*;
 use bevy::prelude::*;
 use hashbrown::HashSet;
+use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
 use crate::broad::{self, BoundingBox, Collider};
@@ -107,7 +108,7 @@ impl Default for AngularTolerance {
 }
 
 /// The local up vector, affects a single semikinematic body.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Properties)]
 pub struct Up(pub Vec3);
 
 impl Default for Up {
@@ -117,7 +118,7 @@ impl Default for Up {
 }
 
 /// The rotation, relative to the up vector.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Properties)]
 pub struct UpRotation(pub f32);
 
 impl Default for UpRotation {
@@ -291,7 +292,7 @@ impl Collider for Obb {
 }
 
 /// The three dimensional size of a `Shape`
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Property)]
 pub struct Size3 {
     pub width: f32,
     pub height: f32,
@@ -312,22 +313,22 @@ impl Size3 {
 /// The shape of a rigid body.
 ///
 /// Contains a rotation/translation offset and a size.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Properties)]
 pub struct Shape {
-    local: Transform,
+    local: Mat4,
     size: Size3,
 }
 
 impl Shape {
     /// Return a new `Shape` with a zero offset and a size.
     pub fn new(size: Size3) -> Self {
-        let local = Transform::identity();
+        let local = Mat4::identity();
         Self { local, size }
     }
 
     /// Return a new `Shape` with an offset and a size.
     pub fn with_local(mut self, local: Transform) -> Self {
-        self.local = local;
+        self.local = *local.value();
         self
     }
 
@@ -596,7 +597,7 @@ impl SpringJoint {
 /// Allows one `RigidBody` to be anchored at another one
 /// in a pre-defined way, along with a local offset and angle.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Joint<B> {
+pub struct Joint<B: JointBehaviour> {
     inner: InnerJoint,
     behaviour: B,
 }
@@ -635,7 +636,7 @@ impl<B: JointBehaviour> Joint<B> {
 }
 
 /// The rigid body.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Properties)]
 pub struct RigidBody {
     /// Current position of this rigid body.
     pub position: Vec3,
@@ -840,7 +841,7 @@ pub fn broad_phase_system(
                 let collider = Obb::new(
                     body.status,
                     entity,
-                    shape.local,
+                    Transform::new(shape.local),
                     Transform::from_translation_rotation(body.position, body.rotation),
                     shape.extent(),
                 );

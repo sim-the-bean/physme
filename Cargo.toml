@@ -15,6 +15,7 @@ categories = ["game-development"]
 smallvec = "1.4"
 rstar = "0.8"
 hashbrown = "0.9"
+serde = "1.0"
 
 [dependencies.bevy]
 version = "0.2.1"
