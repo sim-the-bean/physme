@@ -65,6 +65,20 @@ impl Mat3Ext for Mat3 {
     }
 }
 
+trait Mat4Ext {
+    fn truncate(&self) -> Mat3;
+}
+
+impl Mat4Ext for Mat4 {
+    fn truncate(&self) -> Mat3 {
+        Mat3::from_cols(
+            self.x_axis().truncate().into(),
+            self.y_axis().truncate().into(),
+            self.z_axis().truncate().into(),
+        )
+    }
+}
+
 enum TrackFaceAxis {
     None,
     Some { axis: u32, max: f32, normal: Vec3 },
@@ -708,7 +722,7 @@ pub fn box_to_box(a: &Obb, b: &Obb) -> Option<Manifold> {
     let mut nb = Vec3::zero();
     let mut ne = Vec3::zero();
 
-    let atxr = Mat3::from_quat(atx.rotation());
+    let atxr = atx.value().truncate();
 
     s = t.x().abs() - (ea.x() + absc.column0().dot(eb));
     match track_face_axis(0, s, amax, atxr.row0()) {
@@ -743,7 +757,7 @@ pub fn box_to_box(a: &Obb, b: &Obb) -> Option<Manifold> {
         _ => {}
     }
 
-    let btxr = Mat3::from_quat(btx.rotation());
+    let btxr = btx.value().truncate();
 
     s = t.dot(c.row0()).abs() - (eb.x() + absc.row0().dot(ea));
     match track_face_axis(3, s, bmax, btxr.row0()) {
