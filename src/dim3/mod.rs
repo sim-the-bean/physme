@@ -962,27 +962,7 @@ fn solve_system(
                     if v.sign() == d.sign() {
                         // nothing
                     } else {
-                        let c = a.linvel.cross(manifold.normal);
-                        let c = if c.length_squared() <= f32::EPSILON {
-                            Vec3::new(1.0, 1.0, 1.0) - up.0
-                        } else {
-                            let z = if c.x().abs() <= f32::EPSILON {
-                                0.0
-                            } else {
-                                1.0
-                            };
-                            let y = if c.y().abs() <= f32::EPSILON {
-                                0.0
-                            } else {
-                                1.0
-                            };
-                            let x = if c.z().abs() <= f32::EPSILON {
-                                0.0
-                            } else {
-                                1.0
-                            };
-                            Vec3::new(x, y, z)
-                        };
+                        let c = Vec3::splat(1.0) - manifold.normal.abs();
                         a.linvel *= c;
                         a.position += d;
                     }
@@ -1011,27 +991,7 @@ fn solve_system(
                         if v.sign() == d.sign() {
                             // nothing
                         } else {
-                            let c = a.linvel.cross(manifold.normal);
-                            let c = if c.length_squared() <= f32::EPSILON {
-                                Vec3::new(1.0, 1.0, 1.0) - up.0
-                            } else {
-                                let z = if c.x().abs() <= f32::EPSILON {
-                                    0.0
-                                } else {
-                                    1.0
-                                };
-                                let y = if c.y().abs() <= f32::EPSILON {
-                                    0.0
-                                } else {
-                                    1.0
-                                };
-                                let x = if c.z().abs() <= f32::EPSILON {
-                                    0.0
-                                } else {
-                                    1.0
-                                };
-                                Vec3::new(x, y, z)
-                            };
+                            let c = Vec3::splat(1.0) - manifold.normal.abs();
                             a.linvel *= c;
                             a.position += d;
                         }
@@ -1060,27 +1020,7 @@ fn solve_system(
                     if v.sign() == d.sign() {
                         // nothing
                     } else {
-                        let c = b.linvel.cross(manifold.normal);
-                        let c = if c.length_squared() <= f32::EPSILON {
-                            Vec3::new(1.0, 1.0, 1.0) - up.0
-                        } else {
-                            let z = if c.x().abs() <= f32::EPSILON {
-                                0.0
-                            } else {
-                                1.0
-                            };
-                            let y = if c.y().abs() <= f32::EPSILON {
-                                0.0
-                            } else {
-                                1.0
-                            };
-                            let x = if c.z().abs() <= f32::EPSILON {
-                                0.0
-                            } else {
-                                1.0
-                            };
-                            Vec3::new(x, y, z)
-                        };
+                        let c = Vec3::splat(1.0) - manifold.normal.abs();
                         b.linvel *= c;
                         b.position += d;
                     }
@@ -1109,27 +1049,7 @@ fn solve_system(
                         if v.sign() == d.sign() {
                             // nothing
                         } else {
-                            let c = b.linvel.cross(manifold.normal);
-                            let c = if c.length_squared() <= f32::EPSILON {
-                                Vec3::new(1.0, 1.0, 1.0) - up.0
-                            } else {
-                                let z = if c.x().abs() <= f32::EPSILON {
-                                    0.0
-                                } else {
-                                    1.0
-                                };
-                                let y = if c.y().abs() <= f32::EPSILON {
-                                    0.0
-                                } else {
-                                    1.0
-                                };
-                                let x = if c.z().abs() <= f32::EPSILON {
-                                    0.0
-                                } else {
-                                    1.0
-                                };
-                                Vec3::new(x, y, z)
-                            };
+                            let c = Vec3::splat(1.0) - manifold.normal.abs();
                             b.linvel *= c;
                             b.position += d;
                         }
