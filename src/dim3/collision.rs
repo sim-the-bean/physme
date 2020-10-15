@@ -426,7 +426,7 @@ fn compute_reference_edges_and_basis(er: Vec3, rtx: Transform, n: Vec3, mut axis
         axis -= 3;
     }
 
-    let row_rot = Mat3::from_quat(rtx.rotation()).transpose();
+    let row_rot = rtx.value().truncate().transpose();
     match axis {
         0 => {
             if n.x() > 0.0 {
@@ -457,8 +457,9 @@ fn compute_reference_edges_and_basis(er: Vec3, rtx: Transform, n: Vec3, mut axis
             if n.y() > 0.0 {
                 let clip_edges = [0, 1, 2, 3];
                 let e = Vec3::new(er.z(), er.x(), er.y());
+                /// NOTE: This is not what qu3e does here. I changed this, because it appears that only this provides the correct results.
                 let basis =
-                    Mat3::from_cols(row_rot.column2(), row_rot.column0(), row_rot.column1())
+                    Mat3::from_cols(row_rot.column0(), row_rot.column1(), row_rot.column2())
                         .transpose();
                 RefEb {
                     clip_edges,
@@ -468,8 +469,9 @@ fn compute_reference_edges_and_basis(er: Vec3, rtx: Transform, n: Vec3, mut axis
             } else {
                 let clip_edges = [4, 5, 6, 7];
                 let e = Vec3::new(er.z(), er.x(), er.y());
+                /// NOTE: This is not what qu3e does here. I changed this, because it appears that only this provides the correct results.
                 let basis =
-                    Mat3::from_cols(row_rot.column2(), -row_rot.column0(), -row_rot.column1())
+                    Mat3::from_cols(row_rot.column0(), -row_rot.column1(), -row_rot.column2())
                         .transpose();
                 RefEb {
                     clip_edges,
@@ -545,10 +547,6 @@ fn orthographic(
             cv.f.outi = 0;
             debug_assert!(out.len() < 8);
             out.push(cv);
-        // } else if behind(da) && behind(db) {
-        // Randy Gaul's code uses this, but this seems to give incorrect results question mark
-        // I probably have a bug somewhere though.
-        // NOTE: If you ever encounter clipping inconsistencies, just swap these lines
         } else if behind(da) && in_front(db) {
             cv.f = a.f;
             cv.v = a.v + (b.v - a.v) * (da / (da - db));
