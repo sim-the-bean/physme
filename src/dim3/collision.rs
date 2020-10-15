@@ -123,298 +123,83 @@ fn track_edge_axis(n: u32, mut s: f32, smax: f32, normal: Vec3) -> TrackEdgeAxis
     TrackEdgeAxis::Yes
 }
 
-#[derive(Debug, Clone, Copy)]
-struct FeaturePair {
-    inr: u8,
-    outr: u8,
-    ini: u8,
-    outi: u8,
-}
-
-impl Default for FeaturePair {
-    fn default() -> Self {
-        Self {
-            inr: u8::MAX,
-            outr: u8::MAX,
-            ini: u8::MAX,
-            outi: u8::MAX,
-        }
-    }
-}
-
-#[derive(Default, Debug, Clone, Copy)]
-struct ClipVertex {
-    v: Vec3,
-    f: FeaturePair,
-}
-
-fn compute_incident_face(itx: Transform, e: Vec3, n: Vec3) -> [ClipVertex; 4] {
+fn compute_incident_face(itx: Transform, e: Vec3, n: Vec3) -> [Vec3; 4] {
     let n = -itx.rotation().mult(n);
     let absn = n.abs();
 
     if absn.x() > absn.y() && absn.x() > absn.z() {
         if n.x() > 0.0 {
             [
-                ClipVertex {
-                    v: itx
-                        .value()
-                        .transform_point3(Vec3::new(e.x(), e.y(), -e.z())),
-                    f: FeaturePair {
-                        ini: 9,
-                        outi: 1,
-                        ..Default::default()
-                    },
-                },
-                ClipVertex {
-                    v: itx.value().transform_point3(Vec3::new(e.x(), e.y(), e.z())),
-                    f: FeaturePair {
-                        ini: 1,
-                        outi: 8,
-                        ..Default::default()
-                    },
-                },
-                ClipVertex {
-                    v: itx
-                        .value()
-                        .transform_point3(Vec3::new(e.x(), -e.y(), e.z())),
-                    f: FeaturePair {
-                        ini: 8,
-                        outi: 7,
-                        ..Default::default()
-                    },
-                },
-                ClipVertex {
-                    v: itx
-                        .value()
-                        .transform_point3(Vec3::new(e.x(), -e.y(), -e.z())),
-                    f: FeaturePair {
-                        ini: 7,
-                        outi: 9,
-                        ..Default::default()
-                    },
-                },
+                itx.value()
+                    .transform_point3(Vec3::new(e.x(), e.y(), -e.z())),
+                itx.value().transform_point3(Vec3::new(e.x(), e.y(), e.z())),
+                itx.value()
+                    .transform_point3(Vec3::new(e.x(), -e.y(), e.z())),
+                itx.value()
+                    .transform_point3(Vec3::new(e.x(), -e.y(), -e.z())),
             ]
         } else {
             [
-                ClipVertex {
-                    v: itx
-                        .value()
-                        .transform_point3(Vec3::new(-e.x(), -e.y(), e.z())),
-                    f: FeaturePair {
-                        ini: 5,
-                        outi: 11,
-                        ..Default::default()
-                    },
-                },
-                ClipVertex {
-                    v: itx
-                        .value()
-                        .transform_point3(Vec3::new(-e.x(), e.y(), e.z())),
-                    f: FeaturePair {
-                        ini: 11,
-                        outi: 3,
-                        ..Default::default()
-                    },
-                },
-                ClipVertex {
-                    v: itx
-                        .value()
-                        .transform_point3(Vec3::new(-e.x(), e.y(), -e.z())),
-                    f: FeaturePair {
-                        ini: 3,
-                        outi: 10,
-                        ..Default::default()
-                    },
-                },
-                ClipVertex {
-                    v: itx
-                        .value()
-                        .transform_point3(Vec3::new(-e.x(), -e.y(), -e.z())),
-                    f: FeaturePair {
-                        ini: 10,
-                        outi: 5,
-                        ..Default::default()
-                    },
-                },
+                itx.value()
+                    .transform_point3(Vec3::new(-e.x(), -e.y(), e.z())),
+                itx.value()
+                    .transform_point3(Vec3::new(-e.x(), e.y(), e.z())),
+                itx.value()
+                    .transform_point3(Vec3::new(-e.x(), e.y(), -e.z())),
+                itx.value()
+                    .transform_point3(Vec3::new(-e.x(), -e.y(), -e.z())),
             ]
         }
     } else if absn.y() > absn.x() && absn.y() > absn.z() {
         if n.y() > 0.0 {
             [
-                ClipVertex {
-                    v: itx
-                        .value()
-                        .transform_point3(Vec3::new(-e.x(), e.y(), e.z())),
-                    f: FeaturePair {
-                        ini: 3,
-                        outi: 0,
-                        ..Default::default()
-                    },
-                },
-                ClipVertex {
-                    v: itx.value().transform_point3(Vec3::new(e.x(), e.y(), e.z())),
-                    f: FeaturePair {
-                        ini: 0,
-                        outi: 1,
-                        ..Default::default()
-                    },
-                },
-                ClipVertex {
-                    v: itx
-                        .value()
-                        .transform_point3(Vec3::new(e.x(), e.y(), -e.z())),
-                    f: FeaturePair {
-                        ini: 1,
-                        outi: 2,
-                        ..Default::default()
-                    },
-                },
-                ClipVertex {
-                    v: itx
-                        .value()
-                        .transform_point3(Vec3::new(-e.x(), e.y(), -e.z())),
-                    f: FeaturePair {
-                        ini: 2,
-                        outi: 3,
-                        ..Default::default()
-                    },
-                },
+                itx.value()
+                    .transform_point3(Vec3::new(-e.x(), e.y(), e.z())),
+                itx.value().transform_point3(Vec3::new(e.x(), e.y(), e.z())),
+                itx.value()
+                    .transform_point3(Vec3::new(e.x(), e.y(), -e.z())),
+                itx.value()
+                    .transform_point3(Vec3::new(-e.x(), e.y(), -e.z())),
             ]
         } else {
             [
-                ClipVertex {
-                    v: itx
-                        .value()
-                        .transform_point3(Vec3::new(e.x(), -e.y(), e.z())),
-                    f: FeaturePair {
-                        ini: 7,
-                        outi: 4,
-                        ..Default::default()
-                    },
-                },
-                ClipVertex {
-                    v: itx
-                        .value()
-                        .transform_point3(Vec3::new(-e.x(), -e.y(), e.z())),
-                    f: FeaturePair {
-                        ini: 4,
-                        outi: 5,
-                        ..Default::default()
-                    },
-                },
-                ClipVertex {
-                    v: itx
-                        .value()
-                        .transform_point3(Vec3::new(-e.x(), -e.y(), -e.z())),
-                    f: FeaturePair {
-                        ini: 5,
-                        outi: 6,
-                        ..Default::default()
-                    },
-                },
-                ClipVertex {
-                    v: itx
-                        .value()
-                        .transform_point3(Vec3::new(e.x(), -e.y(), -e.z())),
-                    f: FeaturePair {
-                        ini: 6,
-                        outi: 7,
-                        ..Default::default()
-                    },
-                },
+                itx.value()
+                    .transform_point3(Vec3::new(e.x(), -e.y(), e.z())),
+                itx.value()
+                    .transform_point3(Vec3::new(-e.x(), -e.y(), e.z())),
+                itx.value()
+                    .transform_point3(Vec3::new(-e.x(), -e.y(), -e.z())),
+                itx.value()
+                    .transform_point3(Vec3::new(e.x(), -e.y(), -e.z())),
             ]
         }
     } else {
         if n.z() > 0.0 {
             [
-                ClipVertex {
-                    v: itx
-                        .value()
-                        .transform_point3(Vec3::new(-e.x(), e.y(), e.z())),
-                    f: FeaturePair {
-                        ini: 0,
-                        outi: 11,
-                        ..Default::default()
-                    },
-                },
-                ClipVertex {
-                    v: itx
-                        .value()
-                        .transform_point3(Vec3::new(-e.x(), -e.y(), e.z())),
-                    f: FeaturePair {
-                        ini: 11,
-                        outi: 4,
-                        ..Default::default()
-                    },
-                },
-                ClipVertex {
-                    v: itx
-                        .value()
-                        .transform_point3(Vec3::new(e.x(), -e.y(), e.z())),
-                    f: FeaturePair {
-                        ini: 4,
-                        outi: 8,
-                        ..Default::default()
-                    },
-                },
-                ClipVertex {
-                    v: itx.value().transform_point3(Vec3::new(e.x(), e.y(), e.z())),
-                    f: FeaturePair {
-                        ini: 8,
-                        outi: 0,
-                        ..Default::default()
-                    },
-                },
+                itx.value()
+                    .transform_point3(Vec3::new(-e.x(), e.y(), e.z())),
+                itx.value()
+                    .transform_point3(Vec3::new(-e.x(), -e.y(), e.z())),
+                itx.value()
+                    .transform_point3(Vec3::new(e.x(), -e.y(), e.z())),
+                itx.value().transform_point3(Vec3::new(e.x(), e.y(), e.z())),
             ]
         } else {
             [
-                ClipVertex {
-                    v: itx
-                        .value()
-                        .transform_point3(Vec3::new(e.x(), -e.y(), -e.z())),
-                    f: FeaturePair {
-                        ini: 9,
-                        outi: 6,
-                        ..Default::default()
-                    },
-                },
-                ClipVertex {
-                    v: itx
-                        .value()
-                        .transform_point3(Vec3::new(-e.x(), -e.y(), -e.z())),
-                    f: FeaturePair {
-                        ini: 6,
-                        outi: 10,
-                        ..Default::default()
-                    },
-                },
-                ClipVertex {
-                    v: itx
-                        .value()
-                        .transform_point3(Vec3::new(-e.x(), e.y(), -e.z())),
-                    f: FeaturePair {
-                        ini: 10,
-                        outi: 2,
-                        ..Default::default()
-                    },
-                },
-                ClipVertex {
-                    v: itx
-                        .value()
-                        .transform_point3(Vec3::new(e.x(), e.y(), -e.z())),
-                    f: FeaturePair {
-                        ini: 2,
-                        outi: 9,
-                        ..Default::default()
-                    },
-                },
+                itx.value()
+                    .transform_point3(Vec3::new(e.x(), -e.y(), -e.z())),
+                itx.value()
+                    .transform_point3(Vec3::new(-e.x(), -e.y(), -e.z())),
+                itx.value()
+                    .transform_point3(Vec3::new(-e.x(), e.y(), -e.z())),
+                itx.value()
+                    .transform_point3(Vec3::new(e.x(), e.y(), -e.z())),
             ]
         }
     }
 }
 
 struct RefEb {
-    clip_edges: [u8; 4],
     basis: Mat3,
     e: Vec3,
 }
@@ -426,96 +211,46 @@ fn compute_reference_edges_and_basis(er: Vec3, rtx: Transform, n: Vec3, mut axis
         axis -= 3;
     }
 
-    let row_rot = rtx.value().truncate().transpose();
+    let rot = rtx.value().truncate();
     match axis {
         0 => {
             if n.x() > 0.0 {
-                let clip_edges = [1, 8, 7, 9];
-                let e = Vec3::new(er.y(), er.z(), er.x());
-                let basis =
-                    Mat3::from_cols(row_rot.column1(), row_rot.column2(), row_rot.column0())
-                        .transpose();
-                RefEb {
-                    clip_edges,
-                    basis,
-                    e,
-                }
-            } else {
-                let clip_edges = [11, 3, 10, 5];
                 let e = Vec3::new(er.z(), er.y(), er.x());
-                let basis =
-                    Mat3::from_cols(row_rot.column2(), row_rot.column1(), -row_rot.column0())
-                        .transpose();
-                RefEb {
-                    clip_edges,
-                    basis,
-                    e,
-                }
+                let basis = rot * Mat3::from_quat(Quat::from_rotation_y(90.0_f32.to_radians()));
+                RefEb { basis, e }
+            } else {
+                let e = Vec3::new(er.z(), er.y(), er.x());
+                let basis = rot * Mat3::from_quat(Quat::from_rotation_y(90.0_f32.to_radians()));
+                RefEb { basis, e }
             }
         }
         1 => {
             if n.y() > 0.0 {
-                let clip_edges = [0, 1, 2, 3];
-                let e = Vec3::new(er.x(), er.y(), er.z());
-                // NOTE: This is not what qu3e does here. I changed this, because it appears that only this provides the correct results.
-                let basis =
-                    Mat3::from_cols(row_rot.column0(), row_rot.column1(), row_rot.column2())
-                        .transpose();
-                RefEb {
-                    clip_edges,
-                    basis,
-                    e,
-                }
+                let e = Vec3::new(er.x(), er.z(), er.y());
+                let basis = rot * Mat3::from_quat(Quat::from_rotation_x(90.0_f32.to_radians()));
+                RefEb { basis, e }
             } else {
-                let clip_edges = [4, 5, 6, 7];
-                let e = Vec3::new(er.x(), er.y(), er.z());
-                // NOTE: This is not what qu3e does here. I changed this, because it appears that only this provides the correct results.
-                let basis =
-                    Mat3::from_cols(row_rot.column0(), -row_rot.column1(), -row_rot.column2())
-                        .transpose();
-                RefEb {
-                    clip_edges,
-                    basis,
-                    e,
-                }
+                let e = Vec3::new(er.x(), er.z(), er.y());
+                let basis = rot * Mat3::from_quat(Quat::from_rotation_x(90.0_f32.to_radians()));
+                RefEb { basis, e }
             }
         }
         2 => {
             if n.z() > 0.0 {
-                let clip_edges = [11, 4, 8, 0];
-                let e = Vec3::new(er.y(), er.x(), er.z());
-                let basis =
-                    Mat3::from_cols(-row_rot.column1(), row_rot.column0(), row_rot.column2())
-                        .transpose();
-                RefEb {
-                    clip_edges,
-                    basis,
-                    e,
-                }
+                let e = Vec3::new(er.x(), er.y(), er.z());
+                let basis = rot;
+                RefEb { basis, e }
             } else {
-                let clip_edges = [6, 10, 2, 9];
-                let e = Vec3::new(er.y(), er.x(), er.z());
-                let basis =
-                    Mat3::from_cols(-row_rot.column1(), -row_rot.column0(), -row_rot.column2())
-                        .transpose();
-                RefEb {
-                    clip_edges,
-                    basis,
-                    e,
-                }
+                let e = Vec3::new(er.x(), er.y(), er.z());
+                let basis = rot;
+                RefEb { basis, e }
             }
         }
         _ => unimplemented!(),
     }
 }
 
-fn orthographic(
-    sign: f32,
-    e: f32,
-    axis: u32,
-    clip_edge: u8,
-    vin: &[ClipVertex],
-) -> SmallVec<[ClipVertex; 8]> {
+fn orthographic(sign: f32, e: f32, axis: u32, vin: &[Vec3]) -> SmallVec<[Vec3; 8]> {
     fn in_front(a: f32) -> bool {
         a < 0.0
     }
@@ -529,34 +264,26 @@ fn orthographic(
     }
 
     let mut out = SmallVec::new();
-    let mut a = vin.last().unwrap();
+    let mut a = *vin.last().unwrap();
 
-    for b in vin {
-        let da = sign * a.v[axis as usize] - e;
-        let db = sign * b.v[axis as usize] - e;
-
-        let mut cv = ClipVertex::default();
+    for &b in vin {
+        let da = sign * a[axis as usize] - e;
+        let db = sign * b[axis as usize] - e;
 
         if in_front(da) && in_front(db) || on(da) || on(db) {
             debug_assert!(out.len() < 8);
-            out.push(*b);
+            out.push(b);
         } else if in_front(da) && behind(db) {
-            cv.f = b.f;
-            cv.v = a.v + (b.v - a.v) * (da / (da - db));
-            cv.f.outr = clip_edge;
-            cv.f.outi = 0;
+            let cv = a + (b - a) * (da / (da - db));
             debug_assert!(out.len() < 8);
             out.push(cv);
         } else if behind(da) && in_front(db) {
-            cv.f = a.f;
-            cv.v = a.v + (b.v - a.v) * (da / (da - db));
-            cv.f.inr = clip_edge;
-            cv.f.ini = 0;
+            let cv = a + (b - a) * (da / (da - db));
             debug_assert!(out.len() < 8);
             out.push(cv);
 
             debug_assert!(out.len() < 8);
-            out.push(*b);
+            out.push(b);
         }
 
         a = b;
@@ -567,50 +294,44 @@ fn orthographic(
 
 #[derive(Default)]
 struct Clip {
-    out: SmallVec<[(ClipVertex, f32); 8]>,
+    out: SmallVec<[(Vec3, f32); 8]>,
 }
 
-fn clip(rpos: Vec3, e: Vec3, clip_edges: [u8; 4], basis: Mat3, incident: [ClipVertex; 4]) -> Clip {
+fn clip(rpos: Vec3, e: Vec3, basis: Mat3, incident: [Vec3; 4]) -> Clip {
     let mut vin = SmallVec::<[_; 8]>::new();
     let mut vout;
 
-    for inc in &incident {
-        vin.push(ClipVertex {
-            v: basis.mult(inc.v - rpos),
-            f: inc.f,
-        });
+    for &inc in &incident {
+        vin.push(basis.mult(inc - rpos));
     }
 
-    vout = orthographic(1.0, e.x(), 0, clip_edges[0], vin.as_slice());
+    vout = orthographic(1.0, e.x(), 0, vin.as_slice());
 
     if vout.is_empty() {
         return Clip::default();
     }
 
-    vin = orthographic(1.0, e.y(), 1, clip_edges[1], vout.as_slice());
+    vin = orthographic(1.0, e.y(), 1, vout.as_slice());
 
     if vin.is_empty() {
         return Clip::default();
     }
 
-    vout = orthographic(-1.0, e.x(), 0, clip_edges[2], vin.as_slice());
+    vout = orthographic(-1.0, e.x(), 0, vin.as_slice());
 
     if vout.is_empty() {
         return Clip::default();
     }
 
-    vin = orthographic(-1.0, e.y(), 1, clip_edges[3], vout.as_slice());
+    vin = orthographic(-1.0, e.y(), 1, vout.as_slice());
 
     let mut clipped = SmallVec::new();
 
     for cv in vin {
-        let d = cv.v.z() - e.z();
+        let d = cv.z() - e.z();
 
         if d <= 0.0 {
-            let vertex = ClipVertex {
-                v: basis * cv.v + rpos,
-                f: cv.f,
-            };
+            let vertex = basis * cv + rpos;
 
             clipped.push((vertex, d));
         }
@@ -974,11 +695,10 @@ pub fn box_to_box(a: &Obb, b: &Obb) -> Option<Manifold> {
 
         let incident = compute_incident_face(itx, ei, n);
         let refeb = compute_reference_edges_and_basis(er, rtx, n, axis);
-        let clip_edges = refeb.clip_edges;
         let basis = refeb.basis;
         let e = refeb.e;
 
-        let clip = clip(rtx.translation(), e, clip_edges, basis, incident);
+        let clip = clip(rtx.translation(), e, basis, incident);
         let out = clip.out;
 
         if out.len() > 0 {
@@ -987,7 +707,7 @@ pub fn box_to_box(a: &Obb, b: &Obb) -> Option<Manifold> {
             let mut contacts = SmallVec::new();
             for (v, d) in out {
                 let contact = Contact {
-                    position: v.v,
+                    position: v,
                     penetration: d,
                 };
                 contacts.push(contact);
