@@ -995,7 +995,7 @@ fn solve_system(
                             for &point in &manifold.contacts {
                                 let d = point.position - a.lowest_position;
                                 let s = d.dot(up_vector);
-                                if s < step.0 {
+                                if s >= 0.0 && s < step.0 {
                                     let diff = a.position - a.lowest_position;
                                     a.lowest_position += up_vector * s;
                                     a.position = a.lowest_position + diff;
@@ -1093,7 +1093,7 @@ fn solve_system(
                             for &point in &manifold.contacts {
                                 let d = point.position - b.lowest_position;
                                 let s = d.dot(up_vector);
-                                if s < step.0 {
+                                if s >= 0.0 && s < step.0 {
                                     let diff = b.position - b.lowest_position;
                                     b.lowest_position += up_vector * s;
                                     b.position = b.lowest_position + diff;
