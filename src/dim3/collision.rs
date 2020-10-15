@@ -456,8 +456,8 @@ fn compute_reference_edges_and_basis(er: Vec3, rtx: Transform, n: Vec3, mut axis
         1 => {
             if n.y() > 0.0 {
                 let clip_edges = [0, 1, 2, 3];
-                let e = Vec3::new(er.z(), er.x(), er.y());
-                /// NOTE: This is not what qu3e does here. I changed this, because it appears that only this provides the correct results.
+                let e = Vec3::new(er.x(), er.y(), er.z());
+                // NOTE: This is not what qu3e does here. I changed this, because it appears that only this provides the correct results.
                 let basis =
                     Mat3::from_cols(row_rot.column0(), row_rot.column1(), row_rot.column2())
                         .transpose();
@@ -468,8 +468,8 @@ fn compute_reference_edges_and_basis(er: Vec3, rtx: Transform, n: Vec3, mut axis
                 }
             } else {
                 let clip_edges = [4, 5, 6, 7];
-                let e = Vec3::new(er.z(), er.x(), er.y());
-                /// NOTE: This is not what qu3e does here. I changed this, because it appears that only this provides the correct results.
+                let e = Vec3::new(er.x(), er.y(), er.z());
+                // NOTE: This is not what qu3e does here. I changed this, because it appears that only this provides the correct results.
                 let basis =
                     Mat3::from_cols(row_rot.column0(), -row_rot.column1(), -row_rot.column2())
                         .transpose();
