@@ -806,6 +806,24 @@ impl RigidBody {
         self.mass = mass.scalar();
         self.inv_mass = mass.inverse();
     }
+
+    /// Returns the difference between the last known linear velocity and the current linear velocity.
+    pub fn linear_deceleration(&self) -> Vec3 {
+        self.prev_linvel.abs() - self.linvel.abs()
+    }
+
+    /// Returns the difference between the last known angular velocity and the current angular velocity.
+    pub fn angular_deceleration(&self) -> Quat {
+        let (mut axis, mut angle) = self.prev_angvel.to_axis_angle();
+        axis = axis.abs();
+        angle = angle.abs();
+        let prev_angvel = Quat::from_axis_angle(axis, angle);
+        let (mut axis, mut angle) = self.angvel.to_axis_angle();
+        axis = axis.abs();
+        angle = angle.abs();
+        let angvel = Quat::from_axis_angle(axis, angle);
+        prev_angvel * angvel.conjugate()
+    }
 }
 
 #[derive(Debug, Clone, Copy)]

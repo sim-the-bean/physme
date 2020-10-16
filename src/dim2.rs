@@ -708,6 +708,16 @@ impl RigidBody {
         self.mass = mass.scalar();
         self.inv_mass = mass.inverse();
     }
+
+    /// Returns the difference between the last known linear velocity and the current linear velocity.
+    pub fn linear_deceleration(&self) -> Vec2 {
+        self.prev_linvel.abs() - self.linvel.abs()
+    }
+
+    /// Returns the difference between the last known angular velocity and the current angular velocity.
+    pub fn angular_deceleration(&self) -> f32 {
+        self.prev_angvel.abs() - self.angvel.abs()
+    }
 }
 
 /// The manifold, representing detailed data on a collision between two `RigidBody`s.
