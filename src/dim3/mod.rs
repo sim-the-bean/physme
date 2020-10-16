@@ -1103,7 +1103,7 @@ fn physics_step_system(
     friction: Res<GlobalFriction>,
     gravity: Res<GlobalGravity>,
     global_up: Res<GlobalUp>,
-    mut query: Query<(Mut<RigidBody>, Option<(&Up, &UpRotation)>)>,
+    mut query: Query<(Mut<RigidBody>, Option<(&Up, Mut<UpRotation>)>)>,
 ) {
     if state.skip > 0 {
         state.skip -= 1;
@@ -1170,12 +1170,13 @@ fn physics_step_system(
 
         let (axis, mut angle) = body.angvel.to_axis_angle();
         angle *= delta_time;
-        if let Some((local_up, up_rotation)) = local_up {
+        if let Some((local_up, mut up_rotation)) = local_up {
             let mut axis = local_up.0 * axis;
             if axis.length_squared() <= f32::EPSILON {
                 axis = Vec3::new(0.0, 1.0, 0.0);
             }
-            let rotation = Quat::from_axis_angle(axis, angle + up_rotation.0);
+            up_rotation.0 += angle;
+            let rotation = Quat::from_axis_angle(axis, up_rotation.0);
             let angle = local_up.0.quat_between(global_up.0);
             body.rotation = (rotation * angle).normalize();
         } else {
