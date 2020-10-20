@@ -1044,7 +1044,7 @@ fn solve_system(
 
                     let d = -manifold.normal * manifold.penetration;
                     let v = a.linvel * delta_time;
-                    if v.sign() == d.sign() {
+                    if v.signum() == d.signum() {
                         // nothing
                     } else {
                         a.linvel *= Vec2::new(manifold.normal.y().abs(), manifold.normal.x().abs());
@@ -1072,7 +1072,7 @@ fn solve_system(
                     if solve {
                         let d = -manifold.normal * manifold.penetration;
                         let v = a.linvel * delta_time;
-                        if v.sign() == d.sign() {
+                        if v.signum() == d.signum() {
                             // nothing
                         } else {
                             a.linvel *=
@@ -1094,7 +1094,7 @@ fn solve_system(
 
                     let d = manifold.normal * manifold.penetration;
                     let v = b.linvel * delta_time;
-                    if v.sign() == d.sign() {
+                    if v.signum() == d.signum() {
                         // nothing
                     } else {
                         b.linvel *= Vec2::new(manifold.normal.y().abs(), manifold.normal.x().abs());
@@ -1122,7 +1122,7 @@ fn solve_system(
                     if solve {
                         let d = manifold.normal * manifold.penetration;
                         let v = b.linvel * delta_time;
-                        if v.sign() == d.sign() {
+                        if v.signum() == d.signum() {
                             // nothing
                         } else {
                             b.linvel *=
@@ -1364,30 +1364,30 @@ pub fn sync_transform_system(
                 let x = body.position.x();
                 let y = body.position.y();
                 let z = 0.0;
-                transform.set_translation(Vec3::new(x, y, z));
+                transform.translation = Vec3::new(x, y, z);
             }
             TranslationMode::AxesXZ => {
                 let x = body.position.x();
                 let y = 0.0;
                 let z = body.position.y();
-                transform.set_translation(Vec3::new(x, y, z));
+                transform.translation = Vec3::new(x, y, z);
             }
             TranslationMode::AxesYZ => {
                 let x = 0.0;
                 let y = body.position.x();
                 let z = body.position.y();
-                transform.set_translation(Vec3::new(x, y, z));
+                transform.translation = Vec3::new(x, y, z);
             }
         }
         match *rotation_mode {
             RotationMode::AxisX => {
-                transform.set_rotation(Quat::from_rotation_x(body.rotation));
+                transform.rotation = Quat::from_rotation_x(body.rotation);
             }
             RotationMode::AxisY => {
-                transform.set_rotation(Quat::from_rotation_y(body.rotation));
+                transform.rotation = Quat::from_rotation_y(body.rotation);
             }
             RotationMode::AxisZ => {
-                transform.set_rotation(Quat::from_rotation_z(body.rotation));
+                transform.rotation = Quat::from_rotation_z(body.rotation);
             }
         }
     }

@@ -27,9 +27,9 @@ fn setup(
     asset_server: Res<AssetServer>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    let icon = asset_server.load("assets/icon.png").unwrap();
-    let plat = asset_server.load("assets/platform.png").unwrap();
-    let square = asset_server.load("assets/square.png").unwrap();
+    let icon = asset_server.load("icon.png");
+    let plat = asset_server.load("platform.png");
+    let square = asset_server.load("square.png");
     let mut anchor = None;
     let mut target = None;
     commands
@@ -51,7 +51,7 @@ fn setup(
         })
         .for_current_entity(|e| anchor = Some(e))
         .spawn(SpriteComponents {
-            material: materials.add(plat.into()),
+            material: materials.add(plat.clone_weak().into()),
             ..Default::default()
         })
         .with(
@@ -63,7 +63,7 @@ fn setup(
             parent.spawn((Shape::from(Size2::new(120.0, 20.0)),));
         })
         .spawn(SpriteComponents {
-            material: materials.add(plat.into()),
+            material: materials.add(plat.clone_weak().into()),
             ..Default::default()
         })
         .with(
@@ -76,7 +76,7 @@ fn setup(
             parent.spawn((Shape::from(Size2::new(120.0, 20.0)),));
         })
         .spawn(SpriteComponents {
-            material: materials.add(plat.into()),
+            material: materials.add(plat.clone_weak().into()),
             ..Default::default()
         })
         .with(
@@ -88,7 +88,7 @@ fn setup(
             parent.spawn((Shape::from(Size2::new(120.0, 20.0)),));
         })
         .spawn(SpriteComponents {
-            material: materials.add(plat.into()),
+            material: materials.add(plat.clone_weak().into()),
             ..Default::default()
         })
         .with(
@@ -100,7 +100,7 @@ fn setup(
             parent.spawn((Shape::from(Size2::new(120.0, 20.0)),));
         })
         .spawn(SpriteComponents {
-            material: materials.add(plat.into()),
+            material: materials.add(plat.clone_weak().into()),
             ..Default::default()
         })
         .with(
@@ -124,7 +124,7 @@ fn setup(
             parent.spawn((Shape::from(Size2::new(120.0, 20.0)),));
         })
         .spawn(SpriteComponents {
-            material: materials.add(square.into()),
+            material: materials.add(square.clone_weak().into()),
             ..Default::default()
         })
         .with(

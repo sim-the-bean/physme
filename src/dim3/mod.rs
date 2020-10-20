@@ -157,57 +157,57 @@ impl Obb {
     pub fn v0(&self) -> Vec3 {
         let v = Vec3::new(-self.extent.x(), -self.extent.y(), -self.extent.z());
         self.transform
-            .value()
-            .transform_point3(self.local.value().transform_point3(v))
+            .compute_matrix()
+            .transform_point3(self.local.compute_matrix().transform_point3(v))
     }
 
     pub fn v1(&self) -> Vec3 {
         let v = Vec3::new(self.extent.x(), -self.extent.y(), -self.extent.z());
         self.transform
-            .value()
-            .transform_point3(self.local.value().transform_point3(v))
+            .compute_matrix()
+            .transform_point3(self.local.compute_matrix().transform_point3(v))
     }
 
     pub fn v2(&self) -> Vec3 {
         let v = Vec3::new(self.extent.x(), self.extent.y(), -self.extent.z());
         self.transform
-            .value()
-            .transform_point3(self.local.value().transform_point3(v))
+            .compute_matrix()
+            .transform_point3(self.local.compute_matrix().transform_point3(v))
     }
 
     pub fn v3(&self) -> Vec3 {
         let v = Vec3::new(-self.extent.x(), self.extent.y(), -self.extent.z());
         self.transform
-            .value()
-            .transform_point3(self.local.value().transform_point3(v))
+            .compute_matrix()
+            .transform_point3(self.local.compute_matrix().transform_point3(v))
     }
 
     pub fn v4(&self) -> Vec3 {
         let v = Vec3::new(-self.extent.x(), -self.extent.y(), self.extent.z());
         self.transform
-            .value()
-            .transform_point3(self.local.value().transform_point3(v))
+            .compute_matrix()
+            .transform_point3(self.local.compute_matrix().transform_point3(v))
     }
 
     pub fn v5(&self) -> Vec3 {
         let v = Vec3::new(self.extent.x(), -self.extent.y(), self.extent.z());
         self.transform
-            .value()
-            .transform_point3(self.local.value().transform_point3(v))
+            .compute_matrix()
+            .transform_point3(self.local.compute_matrix().transform_point3(v))
     }
 
     pub fn v6(&self) -> Vec3 {
         let v = Vec3::new(self.extent.x(), self.extent.y(), self.extent.z());
         self.transform
-            .value()
-            .transform_point3(self.local.value().transform_point3(v))
+            .compute_matrix()
+            .transform_point3(self.local.compute_matrix().transform_point3(v))
     }
 
     pub fn v7(&self) -> Vec3 {
         let v = Vec3::new(-self.extent.x(), self.extent.y(), self.extent.z());
         self.transform
-            .value()
-            .transform_point3(self.local.value().transform_point3(v))
+            .compute_matrix()
+            .transform_point3(self.local.compute_matrix().transform_point3(v))
     }
 
     pub fn min(&self) -> Vec3 {
@@ -328,7 +328,7 @@ impl Shape {
 
     /// Return a new `Shape` with an offset and a size.
     pub fn with_local(mut self, local: Transform) -> Self {
-        self.local = *local.value();
+        self.local = local.compute_matrix();
         self
     }
 
@@ -856,11 +856,13 @@ pub fn broad_phase_system(
     for (entity, body, children) in &mut query.iter() {
         for &e in children.iter() {
             if let Ok(shape) = query2.get::<Shape>(e) {
+                let mut transform = Transform::from_translation(body.position);
+                transform.rotation = body.rotation;
                 let collider = Obb::new(
                     body.status,
                     entity,
-                    Transform::new(shape.local),
-                    Transform::from_translation_rotation(body.position, body.rotation),
+                    Transform::from_matrix(shape.local),
+                    transform,
                     shape.extent(),
                 );
                 colliders.push(collider);
@@ -977,7 +979,7 @@ fn solve_system(
 
                     let d = manifold.normal * manifold.penetration;
                     let v = a.linvel * delta_time;
-                    if v.sign() == d.sign() {
+                    if v.signum() == d.signum() {
                         // nothing
                     } else {
                         let c = Vec3::splat(1.0) - manifold.normal.abs();
@@ -1006,7 +1008,7 @@ fn solve_system(
                     if solve {
                         let d = manifold.normal * manifold.penetration;
                         let v = a.linvel * delta_time;
-                        if v.sign() == d.sign() {
+                        if v.signum() == d.signum() {
                             // nothing
                         } else {
                             let c = Vec3::splat(1.0) - manifold.normal.abs();
@@ -1035,7 +1037,7 @@ fn solve_system(
 
                     let d = -manifold.normal * manifold.penetration;
                     let v = b.linvel * delta_time;
-                    if v.sign() == d.sign() {
+                    if v.signum() == d.signum() {
                         // nothing
                     } else {
                         let c = Vec3::splat(1.0) - manifold.normal.abs();
@@ -1064,7 +1066,7 @@ fn solve_system(
                     if solve {
                         let d = -manifold.normal * manifold.penetration;
                         let v = b.linvel * delta_time;
-                        if v.sign() == d.sign() {
+                        if v.signum() == d.signum() {
                             // nothing
                         } else {
                             let c = Vec3::splat(1.0) - manifold.normal.abs();
@@ -1268,7 +1270,7 @@ pub fn joint_system<B: JointBehaviour>(
 
 pub fn sync_transform_system(mut query: Query<(&RigidBody, Mut<Transform>)>) {
     for (body, mut transform) in &mut query.iter() {
-        transform.set_translation(body.position);
-        transform.set_rotation(body.rotation);
+        transform.translation = body.position;
+        transform.rotation = body.rotation;
     }
 }
