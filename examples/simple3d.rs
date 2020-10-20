@@ -48,17 +48,16 @@ fn setup(
         })
         .spawn((Transform::identity(), GlobalTransform::identity()))
         .with_children(|parent| {
+            let mut transform = Transform::from_translation(Vec3::new(0.0, 8.0, 8.0));
+            transform.rotation = Quat::from_rotation_x(-45.0_f32.to_radians());
             parent.spawn(Camera3dComponents {
-                transform: Transform::from_translation_rotation(
-                    Vec3::new(0.0, 8.0, 8.0),
-                    Quat::from_rotation_x(-45.0_f32.to_radians()),
-                ),
+                transform,
                 ..Default::default()
             });
         })
         .for_current_entity(|e| camera = Some(e))
         .spawn(PbrComponents {
-            mesh: cube,
+            mesh: cube.clone_weak(),
             material: materials.add(Color::rgb(1.0, 1.0, 1.0).into()),
             ..Default::default()
         })
@@ -75,7 +74,7 @@ fn setup(
         })
         .for_current_entity(|e| anchor = Some(e))
         .spawn(PbrComponents {
-            mesh: smallcube,
+            mesh: smallcube.clone_weak(),
             material: materials.add(Color::rgb(1.0, 1.0, 1.0).into()),
             ..Default::default()
         })
@@ -105,7 +104,7 @@ fn setup(
             parent.spawn((Shape::from(Size3::new(1.0, 1.0, 1.0)),));
         })
         .spawn(PbrComponents {
-            mesh: bigcube,
+            mesh: bigcube.clone_weak(),
             material: materials.add(Color::rgb(0.2, 0.8, 0.2).into()),
             ..Default::default()
         })
@@ -221,8 +220,8 @@ fn character_system(
 
         let pitch = rotation.0;
         if let Ok(mut transform) = camera.get_mut::<Transform>(controller.camera) {
-            transform.set_translation(body.position);
-            transform.set_rotation(Quat::from_rotation_y(pitch));
+            transform.translation = body.position;
+            transform.rotation = Quat::from_rotation_y(pitch);
         }
     }
 }

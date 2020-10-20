@@ -43,7 +43,7 @@
 //!     asset_server: Res<AssetServer>,
 //!     mut materials: ResMut<Assets<ColorMaterial>>,
 //! ) {
-//!     let icon = asset_server.load("assets/icon.png").unwrap();
+//!     let icon = asset_server.load("assets/icon.png");
 //!     commands
 //!         .spawn(SpriteComponents {
 //!             material: materials.add(icon.into()),
@@ -68,7 +68,7 @@
 //! #     asset_server: Res<AssetServer>,
 //! #     mut materials: ResMut<Assets<ColorMaterial>>,
 //! # ) {
-//! #     let icon = asset_server.load("assets/icon.png").unwrap();
+//! #     let icon = asset_server.load("assets/icon.png");
 //! #     commands
 //! #         .spawn(SpriteComponents {
 //! #             material: materials.add(icon.into()),
@@ -81,7 +81,7 @@
 //! #                 .with_terminal(Vec2::new(500.0, 1000.0)),
 //! #         )
 //!         .with_children(|parent| {
-//!             parent.spawn((Shape::from(Size::new(28.0, 28.0)),));
+//!             parent.spawn((Shape::from(Size2::new(28.0, 28.0)),));
 //!         });
 //! # }
 //! ```

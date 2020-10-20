@@ -14,7 +14,7 @@ trait Mult {
 
 impl Mult for Transform {
     fn mult(&self, v: Vec3) -> Vec3 {
-        self.rotation().conjugate() * (v - self.translation())
+        self.rotation.conjugate() * (v - self.translation)
     }
 }
 
@@ -110,7 +110,7 @@ fn track_edge_axis(n: u32, mut s: f32, smax: f32, normal: Vec3) -> TrackEdgeAxis
         return TrackEdgeAxis::None;
     }
 
-    let l = normal.length_reciprocal();
+    let l = normal.length_recip();
     s *= l;
 
     if s > smax {
@@ -124,76 +124,55 @@ fn track_edge_axis(n: u32, mut s: f32, smax: f32, normal: Vec3) -> TrackEdgeAxis
 }
 
 fn compute_incident_face(itx: Transform, e: Vec3, n: Vec3) -> [Vec3; 4] {
-    let n = -itx.rotation().mult(n);
+    let n = -itx.rotation.mult(n);
     let absn = n.abs();
-
+    let itx_matrix = itx.compute_matrix();
     if absn.x() > absn.y() && absn.x() > absn.z() {
         if n.x() > 0.0 {
             [
-                itx.value()
-                    .transform_point3(Vec3::new(e.x(), e.y(), -e.z())),
-                itx.value().transform_point3(Vec3::new(e.x(), e.y(), e.z())),
-                itx.value()
-                    .transform_point3(Vec3::new(e.x(), -e.y(), e.z())),
-                itx.value()
-                    .transform_point3(Vec3::new(e.x(), -e.y(), -e.z())),
+                itx_matrix.transform_point3(Vec3::new(e.x(), e.y(), -e.z())),
+                itx_matrix.transform_point3(Vec3::new(e.x(), e.y(), e.z())),
+                itx_matrix.transform_point3(Vec3::new(e.x(), -e.y(), e.z())),
+                itx_matrix.transform_point3(Vec3::new(e.x(), -e.y(), -e.z())),
             ]
         } else {
             [
-                itx.value()
-                    .transform_point3(Vec3::new(-e.x(), -e.y(), e.z())),
-                itx.value()
-                    .transform_point3(Vec3::new(-e.x(), e.y(), e.z())),
-                itx.value()
-                    .transform_point3(Vec3::new(-e.x(), e.y(), -e.z())),
-                itx.value()
-                    .transform_point3(Vec3::new(-e.x(), -e.y(), -e.z())),
+                itx_matrix.transform_point3(Vec3::new(-e.x(), -e.y(), e.z())),
+                itx_matrix.transform_point3(Vec3::new(-e.x(), e.y(), e.z())),
+                itx_matrix.transform_point3(Vec3::new(-e.x(), e.y(), -e.z())),
+                itx_matrix.transform_point3(Vec3::new(-e.x(), -e.y(), -e.z())),
             ]
         }
     } else if absn.y() > absn.x() && absn.y() > absn.z() {
         if n.y() > 0.0 {
             [
-                itx.value()
-                    .transform_point3(Vec3::new(-e.x(), e.y(), e.z())),
-                itx.value().transform_point3(Vec3::new(e.x(), e.y(), e.z())),
-                itx.value()
-                    .transform_point3(Vec3::new(e.x(), e.y(), -e.z())),
-                itx.value()
-                    .transform_point3(Vec3::new(-e.x(), e.y(), -e.z())),
+                itx_matrix.transform_point3(Vec3::new(-e.x(), e.y(), e.z())),
+                itx_matrix.transform_point3(Vec3::new(e.x(), e.y(), e.z())),
+                itx_matrix.transform_point3(Vec3::new(e.x(), e.y(), -e.z())),
+                itx_matrix.transform_point3(Vec3::new(-e.x(), e.y(), -e.z())),
             ]
         } else {
             [
-                itx.value()
-                    .transform_point3(Vec3::new(e.x(), -e.y(), e.z())),
-                itx.value()
-                    .transform_point3(Vec3::new(-e.x(), -e.y(), e.z())),
-                itx.value()
-                    .transform_point3(Vec3::new(-e.x(), -e.y(), -e.z())),
-                itx.value()
-                    .transform_point3(Vec3::new(e.x(), -e.y(), -e.z())),
+                itx_matrix.transform_point3(Vec3::new(e.x(), -e.y(), e.z())),
+                itx_matrix.transform_point3(Vec3::new(-e.x(), -e.y(), e.z())),
+                itx_matrix.transform_point3(Vec3::new(-e.x(), -e.y(), -e.z())),
+                itx_matrix.transform_point3(Vec3::new(e.x(), -e.y(), -e.z())),
             ]
         }
     } else {
         if n.z() > 0.0 {
             [
-                itx.value()
-                    .transform_point3(Vec3::new(-e.x(), e.y(), e.z())),
-                itx.value()
-                    .transform_point3(Vec3::new(-e.x(), -e.y(), e.z())),
-                itx.value()
-                    .transform_point3(Vec3::new(e.x(), -e.y(), e.z())),
-                itx.value().transform_point3(Vec3::new(e.x(), e.y(), e.z())),
+                itx_matrix.transform_point3(Vec3::new(-e.x(), e.y(), e.z())),
+                itx_matrix.transform_point3(Vec3::new(-e.x(), -e.y(), e.z())),
+                itx_matrix.transform_point3(Vec3::new(e.x(), -e.y(), e.z())),
+                itx_matrix.transform_point3(Vec3::new(e.x(), e.y(), e.z())),
             ]
         } else {
             [
-                itx.value()
-                    .transform_point3(Vec3::new(e.x(), -e.y(), -e.z())),
-                itx.value()
-                    .transform_point3(Vec3::new(-e.x(), -e.y(), -e.z())),
-                itx.value()
-                    .transform_point3(Vec3::new(-e.x(), e.y(), -e.z())),
-                itx.value()
-                    .transform_point3(Vec3::new(e.x(), e.y(), -e.z())),
+                itx_matrix.transform_point3(Vec3::new(e.x(), -e.y(), -e.z())),
+                itx_matrix.transform_point3(Vec3::new(-e.x(), -e.y(), -e.z())),
+                itx_matrix.transform_point3(Vec3::new(-e.x(), e.y(), -e.z())),
+                itx_matrix.transform_point3(Vec3::new(e.x(), e.y(), -e.z())),
             ]
         }
     }
@@ -205,13 +184,13 @@ struct RefEb {
 }
 
 fn compute_reference_edges_and_basis(er: Vec3, rtx: Transform, n: Vec3, mut axis: u32) -> RefEb {
-    let n = rtx.rotation().mult(n);
+    let n = rtx.rotation.mult(n);
 
     if axis >= 3 {
         axis -= 3;
     }
 
-    let rot = rtx.value().truncate();
+    let rot = rtx.compute_matrix().truncate();
     match axis {
         0 => {
             if n.x() > 0.0 {
@@ -361,7 +340,7 @@ fn edges_contact(pa: Vec3, qa: Vec3, pb: Vec3, qb: Vec3) -> [Vec3; 2] {
 }
 
 fn support_edge(tx: Transform, e: Vec3, n: Vec3) -> [Vec3; 2] {
-    let n = tx.rotation().mult(n);
+    let n = tx.rotation.mult(n);
     let absn = n.abs();
     let a;
     let b;
@@ -384,14 +363,14 @@ fn support_edge(tx: Transform, e: Vec3, n: Vec3) -> [Vec3; 2] {
         }
     }
 
-    let sign = n.sign();
+    let sign = n.signum();
 
     let a = a * sign;
     let b = b * sign;
 
     [
-        tx.value().transform_point3(a),
-        tx.value().transform_point3(b),
+        tx.compute_matrix().transform_point3(a),
+        tx.compute_matrix().transform_point3(b),
     ]
 }
 
@@ -400,15 +379,16 @@ pub fn box_to_box(a: &Obb, b: &Obb) -> Option<Manifold> {
     let mut btx = b.transform;
     let al = a.local;
     let bl = b.local;
-    *atx.value_mut() = *atx.value() * *al.value();
-    *btx.value_mut() = *btx.value() * *bl.value();
+
+    atx = Transform::from_matrix(atx.compute_matrix() * al.compute_matrix());
+    btx = Transform::from_matrix(btx.compute_matrix() * bl.compute_matrix());
 
     let ea = a.extent;
     let eb = b.extent;
 
     // conjugate is the same as inverse for unit squaternions,
     // inverse is the same as transpose for rotation matrices
-    let c = Mat3::from_quat(atx.rotation().conjugate() * btx.rotation());
+    let c = Mat3::from_quat(atx.rotation.conjugate() * btx.rotation);
     let ca = c.to_cols_array_2d();
 
     let mut absc = [[0.0; 3]; 3];
@@ -428,7 +408,7 @@ pub fn box_to_box(a: &Obb, b: &Obb) -> Option<Manifold> {
     let absca = absc;
     let absc = Mat3::from_cols_array_2d(&absca);
 
-    let t = atx.rotation().mult(btx.translation() - atx.translation());
+    let t = atx.rotation.mult(btx.translation - atx.translation);
 
     let mut s;
     let mut amax = f32::MIN;
@@ -441,7 +421,7 @@ pub fn box_to_box(a: &Obb, b: &Obb) -> Option<Manifold> {
     let mut nb = Vec3::zero();
     let mut ne = Vec3::zero();
 
-    let atxr = atx.value().truncate();
+    let atxr = atx.compute_matrix().truncate();
 
     s = t.x().abs() - (ea.x() + absc.column0().dot(eb));
     match track_face_axis(0, s, amax, atxr.row0()) {
@@ -476,7 +456,7 @@ pub fn box_to_box(a: &Obb, b: &Obb) -> Option<Manifold> {
         _ => {}
     }
 
-    let btxr = btx.value().truncate();
+    let btxr = btx.compute_matrix().truncate();
 
     s = t.dot(c.row0()).abs() - (eb.x() + absc.row0().dot(ea));
     match track_face_axis(3, s, bmax, btxr.row0()) {
@@ -663,7 +643,7 @@ pub fn box_to_box(a: &Obb, b: &Obb) -> Option<Manifold> {
         n = na;
     }
 
-    if n.dot(btx.translation() - atx.translation()) < 0.0 {
+    if n.dot(btx.translation - atx.translation) < 0.0 {
         n = -n;
     }
 
@@ -698,7 +678,7 @@ pub fn box_to_box(a: &Obb, b: &Obb) -> Option<Manifold> {
         let basis = refeb.basis;
         let e = refeb.e;
 
-        let clip = clip(rtx.translation(), e, basis, incident);
+        let clip = clip(rtx.translation, e, basis, incident);
         let out = clip.out;
 
         if out.len() > 0 {
@@ -723,9 +703,9 @@ pub fn box_to_box(a: &Obb, b: &Obb) -> Option<Manifold> {
             None
         }
     } else {
-        let mut n = atx.rotation() * n;
+        let mut n = atx.rotation * n;
 
-        if n.dot(btx.translation() - atx.translation()) < 0.0 {
+        if n.dot(btx.translation - atx.translation) < 0.0 {
             n = -n;
         }
 

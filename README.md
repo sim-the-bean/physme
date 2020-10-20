@@ -70,7 +70,7 @@ fn setup(
     asset_server: Res<AssetServer>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    let icon = asset_server.load("assets/icon.png").unwrap();
+    let icon = asset_server.load("icon.png");
     commands
         .spawn(SpriteComponents {
             material: materials.add(icon.into()),
