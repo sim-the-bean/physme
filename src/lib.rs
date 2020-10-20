@@ -101,7 +101,7 @@ pub mod prelude2d {
     pub use crate::dim2::{
         AngularTolerance, BroadPhase, FixedJoint, FixedJointBehaviour, GlobalGravity, GlobalStep,
         GlobalUp, JointBehaviour, Manifold, MechanicalJoint, MechanicalJointBehaviour,
-        Physics2dPlugin, RigidBody, RotationMode, Shape, SpringJoint, SpringJointBehaviour,
+        Physics2dPlugin, RigidBody, RotationMode, Shape, Size2, SpringJoint, SpringJointBehaviour,
         TranslationMode,
     };
 }

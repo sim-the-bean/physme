@@ -47,7 +47,7 @@ fn setup(
         )
         .with(CharacterController::default())
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size::new(28.0, 28.0)),));
+            parent.spawn((Shape::from(Size2::new(28.0, 28.0)),));
         })
         .for_current_entity(|e| anchor = Some(e))
         .spawn(SpriteComponents {
@@ -60,7 +60,7 @@ fn setup(
                 .with_position(Vec2::new(0.0, -100.0)),
         )
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size::new(120.0, 20.0)),));
+            parent.spawn((Shape::from(Size2::new(120.0, 20.0)),));
         })
         .spawn(SpriteComponents {
             material: materials.add(plat.into()),
@@ -73,7 +73,7 @@ fn setup(
                 .with_rotation(10.0_f32.to_radians()),
         )
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size::new(120.0, 20.0)),));
+            parent.spawn((Shape::from(Size2::new(120.0, 20.0)),));
         })
         .spawn(SpriteComponents {
             material: materials.add(plat.into()),
@@ -85,7 +85,7 @@ fn setup(
                 .with_position(Vec2::new(-120.0, -90.0)),
         )
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size::new(120.0, 20.0)),));
+            parent.spawn((Shape::from(Size2::new(120.0, 20.0)),));
         })
         .spawn(SpriteComponents {
             material: materials.add(plat.into()),
@@ -97,7 +97,7 @@ fn setup(
                 .with_position(Vec2::new(360.0, -50.0)),
         )
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size::new(120.0, 20.0)),));
+            parent.spawn((Shape::from(Size2::new(120.0, 20.0)),));
         })
         .spawn(SpriteComponents {
             material: materials.add(plat.into()),
@@ -109,7 +109,7 @@ fn setup(
                 .with_position(Vec2::new(120.0, -10.0)),
         )
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size::new(120.0, 20.0)),));
+            parent.spawn((Shape::from(Size2::new(120.0, 20.0)),));
         })
         .spawn(SpriteComponents {
             material: materials.add(plat.into()),
@@ -121,7 +121,7 @@ fn setup(
                 .with_position(Vec2::new(-120.0, 20.0)),
         )
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size::new(120.0, 20.0)),));
+            parent.spawn((Shape::from(Size2::new(120.0, 20.0)),));
         })
         .spawn(SpriteComponents {
             material: materials.add(square.into()),
@@ -133,7 +133,7 @@ fn setup(
                 .with_position(Vec2::new(30.0, 60.0)),
         )
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size::new(20.0, 20.0)),));
+            parent.spawn((Shape::from(Size2::new(20.0, 20.0)),));
         })
         .spawn(SpriteComponents {
             material: materials.add(square.into()),
@@ -145,7 +145,7 @@ fn setup(
                 .with_position(Vec2::new(100.0, 100.0)),
         )
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size::new(20.0, 20.0)),));
+            parent.spawn((Shape::from(Size2::new(20.0, 20.0)),));
         })
         .for_current_entity(|e| target = Some(e))
         .spawn((
