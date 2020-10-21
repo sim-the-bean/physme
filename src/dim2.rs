@@ -1256,7 +1256,8 @@ fn physics_step_system(
                 let mut lowest_point = Vec2::zero();
                 let mut count = 0;
                 for (&v, &s) in v.iter().zip(&s) {
-                    if s == min {
+                    // clippy "gently recommends" doing this
+                    if (s - min).abs() < f32::EPSILON {
                         lowest_point += v;
                         count += 1;
                     }
