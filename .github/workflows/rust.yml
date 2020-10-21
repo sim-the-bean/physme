@@ -1,0 +1,61 @@
+name: Rust
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build with Rust ${{ matrix.rust_toolchain }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        rust_toolchain: [stable, nightly]
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        exclude:
+          - os: macos-latest
+            toolchain: nightly
+
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: ${{ matrix.rust_toolchain }}
+        override: true
+    - name: Install deps
+      run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev; sudo apt-get install --no-install-recommends libudev-dev
+      if: ${{ matrix.os }} == 'ubuntu-latest'
+    - name: Build
+      run: cargo build --verbose
+    - name: Test
+      run: cargo test --verbose
+  clippy:
+    name: Check for lints with Clippy and check the formatting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+            toolchain: nightly
+            components: clippy, rustfmt
+            override: true
+      - name: Install deps
+        run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev; sudo apt-get install --no-install-recommends libudev-dev
+        if: ${{ matrix.os }} == 'ubuntu-latest'
+      
+      - name: Check for lints
+        uses: actions-rs/clippy-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --all-features
+
+      - name: Check formatting
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
