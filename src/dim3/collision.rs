@@ -183,9 +183,7 @@ struct RefEb {
     e: Vec3,
 }
 
-fn compute_reference_edges_and_basis(er: Vec3, rtx: Transform, n: Vec3, mut axis: u32) -> RefEb {
-    let n = rtx.rotation.mult(n);
-
+fn compute_reference_edges_and_basis(er: Vec3, rtx: Transform, mut axis: u32) -> RefEb {
     if axis >= 3 {
         axis -= 3;
     }
@@ -193,37 +191,19 @@ fn compute_reference_edges_and_basis(er: Vec3, rtx: Transform, n: Vec3, mut axis
     let rot = rtx.compute_matrix().truncate();
     match axis {
         0 => {
-            if n.x() > 0.0 {
-                let e = Vec3::new(er.z(), er.y(), er.x());
-                let basis = rot * Mat3::from_quat(Quat::from_rotation_y(90.0_f32.to_radians()));
-                RefEb { basis, e }
-            } else {
-                let e = Vec3::new(er.z(), er.y(), er.x());
-                let basis = rot * Mat3::from_quat(Quat::from_rotation_y(90.0_f32.to_radians()));
-                RefEb { basis, e }
-            }
+            let e = Vec3::new(er.z(), er.y(), er.x());
+            let basis = rot * Mat3::from_quat(Quat::from_rotation_y(90.0_f32.to_radians()));
+            RefEb { basis, e }
         }
         1 => {
-            if n.y() > 0.0 {
-                let e = Vec3::new(er.x(), er.z(), er.y());
-                let basis = rot * Mat3::from_quat(Quat::from_rotation_x(90.0_f32.to_radians()));
-                RefEb { basis, e }
-            } else {
-                let e = Vec3::new(er.x(), er.z(), er.y());
-                let basis = rot * Mat3::from_quat(Quat::from_rotation_x(90.0_f32.to_radians()));
-                RefEb { basis, e }
-            }
+            let e = Vec3::new(er.x(), er.z(), er.y());
+            let basis = rot * Mat3::from_quat(Quat::from_rotation_x(90.0_f32.to_radians()));
+            RefEb { basis, e }
         }
         2 => {
-            if n.z() > 0.0 {
-                let e = Vec3::new(er.x(), er.y(), er.z());
-                let basis = rot;
-                RefEb { basis, e }
-            } else {
-                let e = Vec3::new(er.x(), er.y(), er.z());
-                let basis = rot;
-                RefEb { basis, e }
-            }
+            let e = Vec3::new(er.x(), er.y(), er.z());
+            let basis = rot;
+            RefEb { basis, e }
         }
         _ => unimplemented!(),
     }
@@ -674,7 +654,7 @@ pub fn box_to_box(a: &Obb, b: &Obb) -> Option<Manifold> {
         }
 
         let incident = compute_incident_face(itx, ei, n);
-        let refeb = compute_reference_edges_and_basis(er, rtx, n, axis);
+        let refeb = compute_reference_edges_and_basis(er, rtx, axis);
         let basis = refeb.basis;
         let e = refeb.e;
 
