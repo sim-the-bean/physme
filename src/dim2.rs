@@ -226,8 +226,8 @@ impl Size2 {
 /// Contains a rotation/translation offset and a size.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Properties)]
 pub struct Shape {
-    offset: Vec2,
-    size: Size2,
+    pub offset: Vec2,
+    pub size: Size2,
 }
 
 impl Shape {
