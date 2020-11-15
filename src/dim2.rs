@@ -738,14 +738,14 @@ pub struct Manifold {
 }
 
 pub fn broad_phase_system(
-    mut commands: Commands,
-    mut query: Query<(Entity, &RigidBody, &Children)>,
+    commands: &mut Commands,
+    query: Query<(Entity, &RigidBody, &Children)>,
     query2: Query<&Shape>,
 ) {
     let mut colliders = Vec::new();
     for (entity, body, children) in &mut query.iter() {
         for &e in children.iter() {
-            if let Ok(shape) = query2.get::<Shape>(e) {
+            if let Ok(shape) = query2.get_component::<Shape>(e) {
                 let v0 = shape.offset;
                 let v1 = shape.offset + Vec2::new(shape.size.width, 0.0);
                 let v2 = shape.offset + Vec2::new(shape.size.width, shape.size.height);
@@ -1001,13 +1001,13 @@ fn solve_system(
     step: Res<GlobalStep>,
     up: Res<GlobalUp>,
     ang_tol: Res<AngularTolerance>,
-    query: Query<Mut<RigidBody>>,
+    mut query: Query<Mut<RigidBody>>,
 ) {
     let delta_time = time.delta.as_secs_f32();
 
     for manifold in solver.reader.iter(&manifolds) {
-        let a = query.get::<RigidBody>(manifold.body1).unwrap();
-        let b = query.get::<RigidBody>(manifold.body2).unwrap();
+        let a = query.get_component::<RigidBody>(manifold.body1).unwrap();
+        let b = query.get_component::<RigidBody>(manifold.body2).unwrap();
 
         if a.sensor || b.sensor {
             continue;
@@ -1035,7 +1035,7 @@ fn solve_system(
         mem::drop(a);
         mem::drop(b);
 
-        let mut a = query.get_mut::<RigidBody>(manifold.body1).unwrap();
+        let mut a = query.get_component_mut::<RigidBody>(manifold.body1).unwrap();
         match a.status {
             Status::Static => {}
             Status::Semikinematic => {
@@ -1085,7 +1085,7 @@ fn solve_system(
         }
         mem::drop(a);
 
-        let mut b = query.get_mut::<RigidBody>(manifold.body2).unwrap();
+        let mut b = query.get_component_mut::<RigidBody>(manifold.body2).unwrap();
         match b.status {
             Status::Static => {}
             Status::Semikinematic => {
@@ -1171,7 +1171,7 @@ fn physics_step_system(
 
     let delta_time = time.delta.as_secs_f32();
 
-    for (mut body, children) in &mut query.iter() {
+    for (mut body, children) in query.iter_mut() {
         if !body.active {
             continue;
         }
@@ -1235,7 +1235,7 @@ fn physics_step_system(
         body.prev_angvel = body.angvel;
 
         for &child in children.iter() {
-            if let Ok(shape) = shapes.get::<Shape>(child) {
+            if let Ok(shape) = shapes.get_component::<Shape>(child) {
                 let v0 = shape.offset;
                 let v1 = shape.offset + Vec2::new(shape.size.width, 0.0);
                 let v2 = shape.offset + Vec2::new(shape.size.width, shape.size.height);
@@ -1269,18 +1269,18 @@ fn physics_step_system(
 }
 
 pub fn joint_system<B: JointBehaviour>(
-    mut commands: Commands,
+    commands: &mut Commands,
     mut query: Query<(Entity, Mut<Joint<B>>)>,
-    bodies: Query<Mut<RigidBody>>,
+    mut bodies: Query<Mut<RigidBody>>,
 ) {
-    for (e, mut joint) in &mut query.iter() {
-        let anchor = if let Ok(anchor) = bodies.get::<RigidBody>(joint.inner.body1) {
+    for (e, mut joint) in query.iter_mut() {
+        let anchor = if let Ok(anchor) = bodies.get_component::<RigidBody>(joint.inner.body1) {
             anchor
         } else {
             commands.despawn_recursive(e);
             continue;
         };
-        let target = if let Ok(target) = bodies.get::<RigidBody>(joint.inner.body2) {
+        let target = if let Ok(target) = bodies.get_component::<RigidBody>(joint.inner.body2) {
             target
         } else {
             commands.despawn_recursive(e);
@@ -1298,7 +1298,7 @@ pub fn joint_system<B: JointBehaviour>(
         mem::drop(anchor);
         mem::drop(target);
 
-        let mut target = bodies.get_mut::<RigidBody>(joint.inner.body2).unwrap();
+        let mut target = bodies.get_component_mut::<RigidBody>(joint.inner.body2).unwrap();
 
         if let Some(position) = position {
             target.position = position;
@@ -1359,7 +1359,7 @@ pub fn sync_transform_system(
     rotation_mode: Res<RotationMode>,
     mut query: Query<(&RigidBody, Mut<Transform>)>,
 ) {
-    for (body, mut transform) in &mut query.iter() {
+    for (body, mut transform) in query.iter_mut() {
         match *translation_mode {
             TranslationMode::AxesXY => {
                 let x = body.position.x();

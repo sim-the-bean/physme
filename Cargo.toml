@@ -18,6 +18,6 @@ hashbrown = "0.9"
 serde = "1.0"
 
 [dependencies.bevy]
-version = "0.2.1"
+version = "0.3"
 git = "https://github.com/bevyengine/bevy.git"
 branch = "master"

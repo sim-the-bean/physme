@@ -20,7 +20,7 @@ impl CharacterController {
 fn main() {
     let mut builder = App::build();
     builder
-        .add_default_plugins()
+        .add_plugins(DefaultPlugins)
         .add_plugin(Physics3dPlugin)
         .add_resource(GlobalFriction(0.90))
         .add_resource(GlobalStep(0.5))
@@ -31,7 +31,7 @@ fn main() {
 }
 
 fn setup(
-    mut commands: Commands,
+    commands: &mut Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
@@ -166,7 +166,7 @@ fn character_system(
     up: Res<GlobalUp>,
     ang_tol: Res<AngularTolerance>,
     mut query: Query<(Mut<CharacterController>, Mut<RigidBody>, Mut<UpRotation>)>,
-    camera: Query<Mut<Transform>>,
+    mut camera: Query<Mut<Transform>>,
 ) {
     let delta_time = time.delta.as_secs_f32();
     for manifold in state.reader.iter(&manifolds) {
@@ -174,17 +174,17 @@ fn character_system(
         let angle = (-dot).acos();
         let angle2 = dot.acos();
         if angle >= 0.0 && angle < ang_tol.0 {
-            if let Ok(mut controller) = query.get_mut::<CharacterController>(manifold.body1) {
+            if let Ok(mut controller) = query.get_component_mut::<CharacterController>(manifold.body1) {
                 controller.on_ground = true;
             }
         } else if angle2 >= 0.0 && angle2 < ang_tol.0 {
-            if let Ok(mut controller) = query.get_mut::<CharacterController>(manifold.body2) {
+            if let Ok(mut controller) = query.get_component_mut::<CharacterController>(manifold.body2) {
                 controller.on_ground = true;
             }
         }
     }
 
-    for (mut controller, mut body, mut rotation) in &mut query.iter() {
+    for (mut controller, mut body, mut rotation) in query.iter_mut() {
         if input.just_pressed(KeyCode::Space) {
             controller.jump = true;
         }
@@ -219,7 +219,7 @@ fn character_system(
         controller.on_ground = false;
 
         let pitch = rotation.0;
-        if let Ok(mut transform) = camera.get_mut::<Transform>(controller.camera) {
+        if let Ok(mut transform) = camera.get_component_mut::<Transform>(controller.camera) {
             transform.translation = body.position;
             transform.rotation = Quat::from_rotation_y(pitch);
         }

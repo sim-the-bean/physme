@@ -7,7 +7,7 @@ pub struct CharacterController;
 fn main() {
     let mut builder = App::build();
     builder
-        .add_default_plugins()
+        .add_plugins(DefaultPlugins)
         .add_plugin(Physics2dPlugin)
         .add_resource(GlobalFriction(0.90))
         .add_startup_system(setup.system());
@@ -17,7 +17,7 @@ fn main() {
 }
 
 fn setup(
-    mut commands: Commands,
+    commands: &mut Commands,
     asset_server: Res<AssetServer>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
@@ -65,11 +65,10 @@ impl CharacterControllerSystem {
 }
 
 fn character_system(
-    _state: Local<CharacterControllerSystem>,
     input: Res<Input<KeyCode>>,
-    mut query: Query<With<CharacterController, Mut<RigidBody>>>,
+    mut query: Query<Mut<RigidBody>, With<CharacterController>>,
 ) {
-    for mut body in &mut query.iter() {
+    for mut body in query.iter_mut() {
         if input.pressed(KeyCode::Q) {
             body.rotation += 0.1;
         }
