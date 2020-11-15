@@ -960,8 +960,6 @@ fn solve_system(
         } else {
             None
         };
-        mem::drop(a);
-        mem::drop(b);
 
         let (mut a, local_up) = query.get_mut(manifold.body1).unwrap();
         match a.status {
@@ -1237,10 +1235,9 @@ pub fn joint_system<B: JointBehaviour>(
         let linimp = joint.behaviour.linear_impulse(offset, &anchor, &target);
         let angimp = joint.behaviour.angular_impulse(angle, &anchor, &target);
 
-        mem::drop(anchor);
-        mem::drop(target);
-
-        let mut target = bodies.get_component_mut::<RigidBody>(joint.inner.body2).unwrap();
+        let mut target = bodies
+            .get_component_mut::<RigidBody>(joint.inner.body2)
+            .unwrap();
 
         if let Some(position) = position {
             target.position = position;

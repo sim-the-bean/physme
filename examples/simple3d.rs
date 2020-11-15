@@ -174,11 +174,15 @@ fn character_system(
         let angle = (-dot).acos();
         let angle2 = dot.acos();
         if angle >= 0.0 && angle < ang_tol.0 {
-            if let Ok(mut controller) = query.get_component_mut::<CharacterController>(manifold.body1) {
+            if let Ok(mut controller) =
+                query.get_component_mut::<CharacterController>(manifold.body1)
+            {
                 controller.on_ground = true;
             }
         } else if angle2 >= 0.0 && angle2 < ang_tol.0 {
-            if let Ok(mut controller) = query.get_component_mut::<CharacterController>(manifold.body2) {
+            if let Ok(mut controller) =
+                query.get_component_mut::<CharacterController>(manifold.body2)
+            {
                 controller.on_ground = true;
             }
         }

@@ -174,11 +174,15 @@ fn character_system(
 ) {
     for manifold in state.reader.iter(&manifolds) {
         if manifold.normal.y() < 0.0 {
-            if let Ok(mut controller) = query.get_component_mut::<CharacterController>(manifold.body1) {
+            if let Ok(mut controller) =
+                query.get_component_mut::<CharacterController>(manifold.body1)
+            {
                 controller.on_ground = true;
             }
         } else if manifold.normal.y() > 0.0 {
-            if let Ok(mut controller) = query.get_component_mut::<CharacterController>(manifold.body2) {
+            if let Ok(mut controller) =
+                query.get_component_mut::<CharacterController>(manifold.body2)
+            {
                 controller.on_ground = true;
             }
         }
