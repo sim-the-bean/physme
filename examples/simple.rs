@@ -10,7 +10,7 @@ pub struct CharacterController {
 fn main() {
     let mut builder = App::build();
     builder
-        .add_default_plugins()
+        .add_plugins(DefaultPlugins)
         .add_plugin(Physics2dPlugin)
         .add_resource(GlobalGravity(Vec2::new(0.0, -500.0)))
         .add_resource(GlobalFriction(0.90))
@@ -23,7 +23,7 @@ fn main() {
 }
 
 fn setup(
-    mut commands: Commands,
+    commands: &mut Commands,
     asset_server: Res<AssetServer>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
@@ -174,17 +174,21 @@ fn character_system(
 ) {
     for manifold in state.reader.iter(&manifolds) {
         if manifold.normal.y() < 0.0 {
-            if let Ok(mut controller) = query.get_mut::<CharacterController>(manifold.body1) {
+            if let Ok(mut controller) =
+                query.get_component_mut::<CharacterController>(manifold.body1)
+            {
                 controller.on_ground = true;
             }
         } else if manifold.normal.y() > 0.0 {
-            if let Ok(mut controller) = query.get_mut::<CharacterController>(manifold.body2) {
+            if let Ok(mut controller) =
+                query.get_component_mut::<CharacterController>(manifold.body2)
+            {
                 controller.on_ground = true;
             }
         }
     }
 
-    for (mut controller, mut body) in &mut query.iter() {
+    for (mut controller, mut body) in query.iter_mut() {
         if input.just_pressed(KeyCode::Space) || input.just_pressed(KeyCode::W) {
             controller.jump = true;
         }

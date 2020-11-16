@@ -848,14 +848,14 @@ pub struct Manifold {
 }
 
 pub fn broad_phase_system(
-    mut commands: Commands,
-    mut query: Query<(Entity, &RigidBody, &Children)>,
+    commands: &mut Commands,
+    query: Query<(Entity, &RigidBody, &Children)>,
     query2: Query<&Shape>,
 ) {
     let mut colliders = Vec::new();
     for (entity, body, children) in &mut query.iter() {
         for &e in children.iter() {
-            if let Ok(shape) = query2.get::<Shape>(e) {
+            if let Ok(shape) = query2.get_component::<Shape>(e) {
                 let mut transform = Transform::from_translation(body.position);
                 transform.rotation = body.rotation;
                 let collider = Obb::new(
@@ -929,13 +929,13 @@ fn solve_system(
     up: Res<GlobalUp>,
     step: Res<GlobalStep>,
     ang_tol: Res<AngularTolerance>,
-    query: Query<(Mut<RigidBody>, Option<Mut<Up>>)>,
+    mut query: Query<(Mut<RigidBody>, Option<Mut<Up>>)>,
 ) {
     let delta_time = time.delta.as_secs_f32();
 
     for manifold in solver.reader.iter(&manifolds) {
-        let a = query.get::<RigidBody>(manifold.body1).unwrap();
-        let b = query.get::<RigidBody>(manifold.body2).unwrap();
+        let a = query.get_component::<RigidBody>(manifold.body1).unwrap();
+        let b = query.get_component::<RigidBody>(manifold.body2).unwrap();
 
         if a.sensor || b.sensor {
             continue;
@@ -960,14 +960,12 @@ fn solve_system(
         } else {
             None
         };
-        mem::drop(a);
-        mem::drop(b);
 
-        let mut a = query.get_mut::<RigidBody>(manifold.body1).unwrap();
+        let (mut a, local_up) = query.get_mut(manifold.body1).unwrap();
         match a.status {
             Status::Static => {}
             Status::Semikinematic => {
-                if let Ok(mut local_up) = query.get_mut::<Up>(manifold.body1) {
+                if let Some(mut local_up) = local_up {
                     let angle = up.0.dot(manifold.normal).acos();
                     if angle >= 0.0 && angle < ang_tol.0 {
                         local_up.0 = manifold.normal;
@@ -1021,11 +1019,11 @@ fn solve_system(
         }
         mem::drop(a);
 
-        let mut b = query.get_mut::<RigidBody>(manifold.body2).unwrap();
+        let (mut b, local_up) = query.get_mut(manifold.body2).unwrap();
         match b.status {
             Status::Static => {}
             Status::Semikinematic => {
-                if let Ok(mut local_up) = query.get_mut::<Up>(manifold.body2) {
+                if let Some(mut local_up) = local_up {
                     let angle = up.0.dot(manifold.normal).acos();
                     if angle >= 0.0 && angle < ang_tol.0 {
                         local_up.0 = manifold.normal;
@@ -1114,7 +1112,7 @@ fn physics_step_system(
 
     let delta_time = time.delta.as_secs_f32();
 
-    for (mut body, local_up) in &mut query.iter() {
+    for (mut body, local_up) in query.iter_mut() {
         if !body.active {
             continue;
         }
@@ -1211,18 +1209,18 @@ fn physics_step_system(
 }
 
 pub fn joint_system<B: JointBehaviour>(
-    mut commands: Commands,
+    commands: &mut Commands,
     mut query: Query<(Entity, Mut<Joint<B>>)>,
-    bodies: Query<Mut<RigidBody>>,
+    mut bodies: Query<Mut<RigidBody>>,
 ) {
-    for (e, mut joint) in &mut query.iter() {
-        let anchor = if let Ok(anchor) = bodies.get::<RigidBody>(joint.inner.body1) {
+    for (e, mut joint) in query.iter_mut() {
+        let anchor = if let Ok(anchor) = bodies.get_component::<RigidBody>(joint.inner.body1) {
             anchor
         } else {
             commands.despawn_recursive(e);
             continue;
         };
-        let target = if let Ok(target) = bodies.get::<RigidBody>(joint.inner.body2) {
+        let target = if let Ok(target) = bodies.get_component::<RigidBody>(joint.inner.body2) {
             target
         } else {
             commands.despawn_recursive(e);
@@ -1237,10 +1235,9 @@ pub fn joint_system<B: JointBehaviour>(
         let linimp = joint.behaviour.linear_impulse(offset, &anchor, &target);
         let angimp = joint.behaviour.angular_impulse(angle, &anchor, &target);
 
-        mem::drop(anchor);
-        mem::drop(target);
-
-        let mut target = bodies.get_mut::<RigidBody>(joint.inner.body2).unwrap();
+        let mut target = bodies
+            .get_component_mut::<RigidBody>(joint.inner.body2)
+            .unwrap();
 
         if let Some(position) = position {
             target.position = position;
@@ -1269,7 +1266,7 @@ pub fn joint_system<B: JointBehaviour>(
 }
 
 pub fn sync_transform_system(mut query: Query<(&RigidBody, Mut<Transform>)>) {
-    for (body, mut transform) in &mut query.iter() {
+    for (body, mut transform) in query.iter_mut() {
         transform.translation = body.position;
         transform.rotation = body.rotation;
     }
