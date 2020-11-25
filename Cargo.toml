@@ -20,4 +20,4 @@ serde = "1.0"
 [dependencies.bevy]
 version = "0.3"
 git = "https://github.com/bevyengine/bevy.git"
-branch = "master"
+commit = "01ba7c44255059f833c2b90d3d6b7ac7e9c025ca"

@@ -17,7 +17,6 @@ fn main() {
         .add_resource(GlobalStep(15.0))
         .add_resource(GlobalUp(Vec2::new(0.0, 1.0)))
         .add_startup_system(setup.system());
-    let character_system = CharacterControllerSystem::default().system(builder.resources_mut());
     builder.add_system(character_system);
     builder.run();
 }
@@ -33,8 +32,8 @@ fn setup(
     let mut anchor = None;
     let mut target = None;
     commands
-        .spawn(Camera2dComponents::default())
-        .spawn(SpriteComponents {
+        .spawn(Camera2dBundle::default())
+        .spawn(SpriteBundle {
             material: materials.add(icon.into()),
             ..Default::default()
         })
@@ -47,10 +46,10 @@ fn setup(
         )
         .with(CharacterController::default())
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size2::new(28.0, 28.0)),));
+            parent.spawn((Shape::from(Size2::new(28.0, 28.0)), ));
         })
         .for_current_entity(|e| anchor = Some(e))
-        .spawn(SpriteComponents {
+        .spawn(SpriteBundle {
             material: materials.add(plat.clone_weak().into()),
             ..Default::default()
         })
@@ -60,9 +59,9 @@ fn setup(
                 .with_position(Vec2::new(0.0, -100.0)),
         )
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size2::new(120.0, 20.0)),));
+            parent.spawn((Shape::from(Size2::new(120.0, 20.0)), ));
         })
-        .spawn(SpriteComponents {
+        .spawn(SpriteBundle {
             material: materials.add(plat.clone_weak().into()),
             ..Default::default()
         })
@@ -73,9 +72,9 @@ fn setup(
                 .with_rotation(10.0_f32.to_radians()),
         )
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size2::new(120.0, 20.0)),));
+            parent.spawn((Shape::from(Size2::new(120.0, 20.0)), ));
         })
-        .spawn(SpriteComponents {
+        .spawn(SpriteBundle {
             material: materials.add(plat.clone_weak().into()),
             ..Default::default()
         })
@@ -85,9 +84,9 @@ fn setup(
                 .with_position(Vec2::new(-120.0, -90.0)),
         )
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size2::new(120.0, 20.0)),));
+            parent.spawn((Shape::from(Size2::new(120.0, 20.0)), ));
         })
-        .spawn(SpriteComponents {
+        .spawn(SpriteBundle {
             material: materials.add(plat.clone_weak().into()),
             ..Default::default()
         })
@@ -97,9 +96,9 @@ fn setup(
                 .with_position(Vec2::new(360.0, -50.0)),
         )
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size2::new(120.0, 20.0)),));
+            parent.spawn((Shape::from(Size2::new(120.0, 20.0)), ));
         })
-        .spawn(SpriteComponents {
+        .spawn(SpriteBundle {
             material: materials.add(plat.clone_weak().into()),
             ..Default::default()
         })
@@ -109,9 +108,9 @@ fn setup(
                 .with_position(Vec2::new(120.0, -10.0)),
         )
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size2::new(120.0, 20.0)),));
+            parent.spawn((Shape::from(Size2::new(120.0, 20.0)), ));
         })
-        .spawn(SpriteComponents {
+        .spawn(SpriteBundle {
             material: materials.add(plat.into()),
             ..Default::default()
         })
@@ -121,9 +120,9 @@ fn setup(
                 .with_position(Vec2::new(-120.0, 20.0)),
         )
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size2::new(120.0, 20.0)),));
+            parent.spawn((Shape::from(Size2::new(120.0, 20.0)), ));
         })
-        .spawn(SpriteComponents {
+        .spawn(SpriteBundle {
             material: materials.add(square.clone_weak().into()),
             ..Default::default()
         })
@@ -133,9 +132,9 @@ fn setup(
                 .with_position(Vec2::new(30.0, 60.0)),
         )
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size2::new(20.0, 20.0)),));
+            parent.spawn((Shape::from(Size2::new(20.0, 20.0)), ));
         })
-        .spawn(SpriteComponents {
+        .spawn(SpriteBundle {
             material: materials.add(square.into()),
             ..Default::default()
         })
@@ -145,7 +144,7 @@ fn setup(
                 .with_position(Vec2::new(100.0, 100.0)),
         )
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size2::new(20.0, 20.0)),));
+            parent.spawn((Shape::from(Size2::new(20.0, 20.0)), ));
         })
         .for_current_entity(|e| target = Some(e))
         .spawn((
@@ -158,14 +157,6 @@ pub struct CharacterControllerSystem {
     reader: EventReader<Manifold>,
 }
 
-impl CharacterControllerSystem {
-    pub fn system(self, res: &mut Resources) -> Box<dyn System> {
-        let system = character_system.system();
-        res.insert_local(system.id(), self);
-        system
-    }
-}
-
 fn character_system(
     mut state: Local<CharacterControllerSystem>,
     input: Res<Input<KeyCode>>,
@@ -175,13 +166,13 @@ fn character_system(
     for manifold in state.reader.iter(&manifolds) {
         if manifold.normal.y() < 0.0 {
             if let Ok(mut controller) =
-                query.get_component_mut::<CharacterController>(manifold.body1)
+            query.get_component_mut::<CharacterController>(manifold.body1)
             {
                 controller.on_ground = true;
             }
         } else if manifold.normal.y() > 0.0 {
             if let Ok(mut controller) =
-                query.get_component_mut::<CharacterController>(manifold.body2)
+            query.get_component_mut::<CharacterController>(manifold.body2)
             {
                 controller.on_ground = true;
             }

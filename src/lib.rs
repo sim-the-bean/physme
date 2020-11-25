@@ -45,7 +45,7 @@
 //! ) {
 //!     let icon = asset_server.load("assets/icon.png");
 //!     commands
-//!         .spawn(SpriteComponents {
+//!         .spawn(SpriteBundle {
 //!             material: materials.add(icon.into()),
 //!             ..Default::default()
 //!         })
@@ -70,7 +70,7 @@
 //! # ) {
 //! #     let icon = asset_server.load("assets/icon.png");
 //! #     commands
-//! #         .spawn(SpriteComponents {
+//! #         .spawn(SpriteBundle {
 //! #             material: materials.add(icon.into()),
 //! #             ..Default::default()
 //! #         })

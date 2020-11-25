@@ -25,7 +25,6 @@ fn main() {
         .add_resource(GlobalFriction(0.90))
         .add_resource(GlobalStep(0.5))
         .add_startup_system(setup.system());
-    let character_system = CharacterControllerSystem::default().system(builder.resources_mut());
     builder.add_system(character_system);
     builder.run();
 }
@@ -42,7 +41,7 @@ fn setup(
     let mut anchor = None;
     let mut target = None;
     commands
-        .spawn(LightComponents {
+        .spawn(LightBundle {
             transform: Transform::from_translation(Vec3::new(0.0, 5.0, 5.0)),
             ..Default::default()
         })
@@ -50,13 +49,13 @@ fn setup(
         .with_children(|parent| {
             let mut transform = Transform::from_translation(Vec3::new(0.0, 8.0, 8.0));
             transform.rotation = Quat::from_rotation_x(-45.0_f32.to_radians());
-            parent.spawn(Camera3dComponents {
+            parent.spawn(Camera3dBundle {
                 transform,
                 ..Default::default()
             });
         })
         .for_current_entity(|e| camera = Some(e))
-        .spawn(PbrComponents {
+        .spawn(PbrBundle {
             mesh: cube.clone_weak(),
             material: materials.add(Color::rgb(1.0, 1.0, 1.0).into()),
             ..Default::default()
@@ -70,10 +69,10 @@ fn setup(
         .with(UpRotation::default())
         .with(CharacterController::new(camera.unwrap()))
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size3::new(1.0, 1.0, 1.0)),));
+            parent.spawn((Shape::from(Size3::new(1.0, 1.0, 1.0)), ));
         })
         .for_current_entity(|e| anchor = Some(e))
-        .spawn(PbrComponents {
+        .spawn(PbrBundle {
             mesh: smallcube.clone_weak(),
             material: materials.add(Color::rgb(1.0, 1.0, 1.0).into()),
             ..Default::default()
@@ -84,13 +83,13 @@ fn setup(
                 .with_position(Vec3::new(10.0, 10.0, 10.0)),
         )
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size3::new(0.2, 0.2, 0.2)),));
+            parent.spawn((Shape::from(Size3::new(0.2, 0.2, 0.2)), ));
         })
         .for_current_entity(|e| target = Some(e))
         .spawn((SpringJoint::new(anchor.unwrap(), target.unwrap())
-            .with_rigidness(0.5)
-            .with_offset(Vec3::new(2.0, 2.0, 0.0)),))
-        .spawn(PbrComponents {
+                    .with_rigidness(0.5)
+                    .with_offset(Vec3::new(2.0, 2.0, 0.0)), ))
+        .spawn(PbrBundle {
             mesh: cube,
             material: materials.add(Color::rgb(1.0, 1.0, 1.0).into()),
             ..Default::default()
@@ -101,9 +100,9 @@ fn setup(
                 .with_position(Vec3::new(5.0, 5.0, 5.0)),
         )
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size3::new(1.0, 1.0, 1.0)),));
+            parent.spawn((Shape::from(Size3::new(1.0, 1.0, 1.0)), ));
         })
-        .spawn(PbrComponents {
+        .spawn(PbrBundle {
             mesh: bigcube.clone_weak(),
             material: materials.add(Color::rgb(0.2, 0.8, 0.2).into()),
             ..Default::default()
@@ -114,9 +113,9 @@ fn setup(
                 .with_position(Vec3::new(0.0, -8.0, 0.0)),
         )
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size3::new(16.0, 16.0, 16.0)),));
+            parent.spawn((Shape::from(Size3::new(16.0, 16.0, 16.0)), ));
         })
-        .spawn(PbrComponents {
+        .spawn(PbrBundle {
             mesh: bigcube,
             material: materials.add(Color::rgb(0.5, 0.5, 0.5).into()),
             ..Default::default()
@@ -128,9 +127,9 @@ fn setup(
                 .with_rotation(Quat::from_rotation_x(10.0_f32.to_radians())),
         )
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size3::new(16.0, 16.0, 16.0)),));
+            parent.spawn((Shape::from(Size3::new(16.0, 16.0, 16.0)), ));
         })
-        .spawn(PbrComponents {
+        .spawn(PbrBundle {
             mesh: smallcube,
             material: materials.add(Color::rgb(0.2, 0.8, 0.2).into()),
             ..Default::default()
@@ -141,21 +140,13 @@ fn setup(
                 .with_position(Vec3::new(-3.0, 0.0, -3.0)),
         )
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size3::new(0.4, 0.4, 0.4)),));
+            parent.spawn((Shape::from(Size3::new(0.4, 0.4, 0.4)), ));
         });
 }
 
 #[derive(Default)]
 pub struct CharacterControllerSystem {
     reader: EventReader<Manifold>,
-}
-
-impl CharacterControllerSystem {
-    pub fn system(self, res: &mut Resources) -> Box<dyn System> {
-        let system = character_system.system();
-        res.insert_local(system.id(), self);
-        system
-    }
 }
 
 fn character_system(
@@ -175,13 +166,13 @@ fn character_system(
         let angle2 = dot.acos();
         if angle >= 0.0 && angle < ang_tol.0 {
             if let Ok(mut controller) =
-                query.get_component_mut::<CharacterController>(manifold.body1)
+            query.get_component_mut::<CharacterController>(manifold.body1)
             {
                 controller.on_ground = true;
             }
         } else if angle2 >= 0.0 && angle2 < ang_tol.0 {
             if let Ok(mut controller) =
-                query.get_component_mut::<CharacterController>(manifold.body2)
+            query.get_component_mut::<CharacterController>(manifold.body2)
             {
                 controller.on_ground = true;
             }

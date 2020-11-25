@@ -11,7 +11,6 @@ fn main() {
         .add_plugin(Physics2dPlugin)
         .add_resource(GlobalFriction(0.90))
         .add_startup_system(setup.system());
-    let character_system = CharacterControllerSystem::default().system(builder.resources_mut());
     builder.add_system(character_system);
     builder.run();
 }
@@ -24,8 +23,8 @@ fn setup(
     let icon = asset_server.load("icon.png");
     let square = asset_server.load("square.png");
     commands
-        .spawn(Camera2dComponents::default())
-        .spawn(SpriteComponents {
+        .spawn(Camera2dBundle::default())
+        .spawn(SpriteBundle {
             material: materials.add(icon.into()),
             ..Default::default()
         })
@@ -37,9 +36,9 @@ fn setup(
         )
         .with(CharacterController::default())
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size2::new(28.0, 28.0)),));
+            parent.spawn((Shape::from(Size2::new(28.0, 28.0)), ));
         })
-        .spawn(SpriteComponents {
+        .spawn(SpriteBundle {
             material: materials.add(square.into()),
             ..Default::default()
         })
@@ -49,20 +48,12 @@ fn setup(
                 .with_position(Vec2::new(0.0, 60.0)),
         )
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size2::new(20.0, 20.0)),));
+            parent.spawn((Shape::from(Size2::new(20.0, 20.0)), ));
         });
 }
 
 #[derive(Default)]
 pub struct CharacterControllerSystem;
-
-impl CharacterControllerSystem {
-    pub fn system(self, res: &mut Resources) -> Box<dyn System> {
-        let system = character_system.system();
-        res.insert_local(system.id(), self);
-        system
-    }
-}
 
 fn character_system(
     input: Res<Input<KeyCode>>,

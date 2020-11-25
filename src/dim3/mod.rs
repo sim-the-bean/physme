@@ -5,11 +5,12 @@
 use std::cmp::Ordering;
 use std::mem;
 
-use bevy::math::*;
-use bevy::prelude::*;
 use hashbrown::HashSet;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
+
+use bevy::math::*;
+use bevy::prelude::*;
 
 use crate::broad::{self, BoundingBox, Collider};
 use crate::common::*;
@@ -47,24 +48,22 @@ impl Plugin for Physics3dPlugin {
             .add_stage_after(stage::NARROW_PHASE, stage::PHYSICS_SOLVE)
             .add_stage_after(stage::PHYSICS_SOLVE, stage::RIGID_JOINT)
             .add_stage_after(stage::RIGID_JOINT, stage::SYNC_TRANSFORM);
-        let physics_step = PhysicsStep::default().system(app.resources_mut());
-        app.add_system_to_stage(stage::PHYSICS_STEP, physics_step)
-            .add_system_to_stage(stage::BROAD_PHASE, broad_phase_system.system())
-            .add_system_to_stage(stage::NARROW_PHASE, narrow_phase_system.system());
-        let solver = Solver::default().system(app.resources_mut());
-        app.add_system_to_stage(stage::PHYSICS_SOLVE, solver)
-            .add_system_to_stage(stage::SYNC_TRANSFORM, sync_transform_system.system())
+        app.add_system_to_stage(stage::PHYSICS_STEP, physics_step_system)
+            .add_system_to_stage(stage::BROAD_PHASE, broad_phase_system)
+            .add_system_to_stage(stage::NARROW_PHASE, narrow_phase_system);
+        app.add_system_to_stage(stage::PHYSICS_SOLVE, solve_system)
+            .add_system_to_stage(stage::SYNC_TRANSFORM, sync_transform_system)
             .add_system_to_stage(
                 FixedJointBehaviour::STAGE,
-                joint_system::<FixedJointBehaviour>.system(),
+                joint_system::<FixedJointBehaviour>,
             )
             .add_system_to_stage(
                 MechanicalJointBehaviour::STAGE,
-                joint_system::<MechanicalJointBehaviour>.system(),
+                joint_system::<MechanicalJointBehaviour>,
             )
             .add_system_to_stage(
                 SpringJointBehaviour::STAGE,
-                joint_system::<SpringJointBehaviour>.system(),
+                joint_system::<SpringJointBehaviour>,
             );
     }
 }
@@ -878,14 +877,6 @@ pub struct NarrowPhase {
     set: HashSet<[Entity; 2]>,
 }
 
-impl NarrowPhase {
-    pub fn system(self, res: &mut Resources) -> Box<dyn System> {
-        let system = narrow_phase_system.system();
-        res.insert_local(system.id(), self);
-        system
-    }
-}
-
 fn narrow_phase_system(
     mut state: Local<NarrowPhase>,
     mut manifolds: ResMut<Events<Manifold>>,
@@ -912,14 +903,6 @@ fn narrow_phase_system(
 #[derive(Default)]
 pub struct Solver {
     reader: EventReader<Manifold>,
-}
-
-impl Solver {
-    pub fn system(self, res: &mut Resources) -> Box<dyn System> {
-        let system = solve_system.system();
-        res.insert_local(system.id(), self);
-        system
-    }
 }
 
 fn solve_system(
@@ -1081,14 +1064,6 @@ fn solve_system(
 
 pub struct PhysicsStep {
     skip: usize,
-}
-
-impl PhysicsStep {
-    pub fn system(self, res: &mut Resources) -> Box<dyn System> {
-        let system = physics_step_system.system();
-        res.insert_local(system.id(), self);
-        system
-    }
 }
 
 impl Default for PhysicsStep {
