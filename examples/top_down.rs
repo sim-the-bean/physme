@@ -36,7 +36,7 @@ fn setup(
         )
         .with(CharacterController::default())
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size2::new(28.0, 28.0)), ));
+            parent.spawn((Shape::from(Size2::new(28.0, 28.0)),));
         })
         .spawn(SpriteBundle {
             material: materials.add(square.into()),
@@ -48,7 +48,7 @@ fn setup(
                 .with_position(Vec2::new(0.0, 60.0)),
         )
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size2::new(20.0, 20.0)), ));
+            parent.spawn((Shape::from(Size2::new(20.0, 20.0)),));
         });
 }
 

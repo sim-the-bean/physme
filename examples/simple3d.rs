@@ -69,7 +69,7 @@ fn setup(
         .with(UpRotation::default())
         .with(CharacterController::new(camera.unwrap()))
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size3::new(1.0, 1.0, 1.0)), ));
+            parent.spawn((Shape::from(Size3::new(1.0, 1.0, 1.0)),));
         })
         .for_current_entity(|e| anchor = Some(e))
         .spawn(PbrBundle {
@@ -83,12 +83,12 @@ fn setup(
                 .with_position(Vec3::new(10.0, 10.0, 10.0)),
         )
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size3::new(0.2, 0.2, 0.2)), ));
+            parent.spawn((Shape::from(Size3::new(0.2, 0.2, 0.2)),));
         })
         .for_current_entity(|e| target = Some(e))
         .spawn((SpringJoint::new(anchor.unwrap(), target.unwrap())
-                    .with_rigidness(0.5)
-                    .with_offset(Vec3::new(2.0, 2.0, 0.0)), ))
+            .with_rigidness(0.5)
+            .with_offset(Vec3::new(2.0, 2.0, 0.0)),))
         .spawn(PbrBundle {
             mesh: cube,
             material: materials.add(Color::rgb(1.0, 1.0, 1.0).into()),
@@ -100,7 +100,7 @@ fn setup(
                 .with_position(Vec3::new(5.0, 5.0, 5.0)),
         )
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size3::new(1.0, 1.0, 1.0)), ));
+            parent.spawn((Shape::from(Size3::new(1.0, 1.0, 1.0)),));
         })
         .spawn(PbrBundle {
             mesh: bigcube.clone_weak(),
@@ -113,7 +113,7 @@ fn setup(
                 .with_position(Vec3::new(0.0, -8.0, 0.0)),
         )
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size3::new(16.0, 16.0, 16.0)), ));
+            parent.spawn((Shape::from(Size3::new(16.0, 16.0, 16.0)),));
         })
         .spawn(PbrBundle {
             mesh: bigcube,
@@ -127,7 +127,7 @@ fn setup(
                 .with_rotation(Quat::from_rotation_x(10.0_f32.to_radians())),
         )
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size3::new(16.0, 16.0, 16.0)), ));
+            parent.spawn((Shape::from(Size3::new(16.0, 16.0, 16.0)),));
         })
         .spawn(PbrBundle {
             mesh: smallcube,
@@ -140,7 +140,7 @@ fn setup(
                 .with_position(Vec3::new(-3.0, 0.0, -3.0)),
         )
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size3::new(0.4, 0.4, 0.4)), ));
+            parent.spawn((Shape::from(Size3::new(0.4, 0.4, 0.4)),));
         });
 }
 
@@ -166,13 +166,13 @@ fn character_system(
         let angle2 = dot.acos();
         if angle >= 0.0 && angle < ang_tol.0 {
             if let Ok(mut controller) =
-            query.get_component_mut::<CharacterController>(manifold.body1)
+                query.get_component_mut::<CharacterController>(manifold.body1)
             {
                 controller.on_ground = true;
             }
         } else if angle2 >= 0.0 && angle2 < ang_tol.0 {
             if let Ok(mut controller) =
-            query.get_component_mut::<CharacterController>(manifold.body2)
+                query.get_component_mut::<CharacterController>(manifold.body2)
             {
                 controller.on_ground = true;
             }
