@@ -21,7 +21,7 @@ pub struct Physics3dPlugin;
 
 pub mod stage {
     #[doc(hidden)]
-    pub use bevy::prelude::stage::*;
+    pub use bevy::prelude::CoreStage;
 
     pub const COLLIDING_JOINT: &str = "colliding_joint_3d";
     pub const PHYSICS_STEP: &str = "physics_step_3d";
@@ -40,7 +40,7 @@ impl Plugin for Physics3dPlugin {
             .add_resource(GlobalStep::default())
             .add_resource(AngularTolerance::default())
             .add_event::<Manifold>()
-            .add_stage_before(stage::UPDATE, stage::PHYSICS_STEP)
+            .add_stage_before(CoreStage::UPDATE, stage::PHYSICS_STEP)
             .add_stage_before(stage::PHYSICS_STEP, stage::COLLIDING_JOINT)
             .add_stage_after(stage::PHYSICS_STEP, stage::BROAD_PHASE)
             .add_stage_after(stage::BROAD_PHASE, stage::NARROW_PHASE)
@@ -108,7 +108,7 @@ impl Default for AngularTolerance {
 }
 
 /// The local up vector, affects a single semikinematic body.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Properties)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Up(pub Vec3);
 
 impl Default for Up {
@@ -118,7 +118,7 @@ impl Default for Up {
 }
 
 /// The rotation, relative to the up vector.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Properties)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct UpRotation(pub f32);
 
 impl Default for UpRotation {
@@ -292,7 +292,7 @@ impl Collider for Obb {
 }
 
 /// The three dimensional size of a `Shape`
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Property)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Size3 {
     pub width: f32,
     pub height: f32,
@@ -313,7 +313,7 @@ impl Size3 {
 /// The shape of a rigid body.
 ///
 /// Contains a rotation/translation offset and a size.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Properties)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Shape {
     local: Mat4,
     size: Size3,
@@ -636,7 +636,7 @@ impl<B: JointBehaviour> Joint<B> {
 }
 
 /// The rigid body.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Properties)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct RigidBody {
     /// Current position of this rigid body.
     pub position: Vec3,
@@ -879,7 +879,7 @@ pub struct NarrowPhase {
 }
 
 impl NarrowPhase {
-    pub fn system(self, res: &mut Resources) -> Box<dyn System> {
+    pub fn system(self, res: &mut World) -> Box<impl System> {
         let system = narrow_phase_system.system();
         res.insert_local(system.id(), self);
         system
@@ -888,7 +888,7 @@ impl NarrowPhase {
 
 fn narrow_phase_system(
     mut state: Local<NarrowPhase>,
-    mut manifolds: ResMut<Events<Manifold>>,
+    mut manifolds: ResMut<EventWriter<Manifold>>,
     broad: Res<BroadPhase>,
 ) {
     state.set.clear();
@@ -910,12 +910,12 @@ fn narrow_phase_system(
 }
 
 #[derive(Default)]
-pub struct Solver {
-    reader: EventReader<Manifold>,
+pub struct Solver<'a> {
+    reader: EventReader<'a, Manifold>,
 }
 
-impl Solver {
-    pub fn system(self, res: &mut Resources) -> Box<dyn System> {
+impl<'a> Solver<'a> {
+    pub fn system(self, res: &mut World) -> Box<impl System> {
         let system = solve_system.system();
         res.insert_local(system.id(), self);
         system
@@ -925,7 +925,7 @@ impl Solver {
 fn solve_system(
     mut solver: Local<Solver>,
     time: Res<Time>,
-    manifolds: Res<Events<Manifold>>,
+    manifolds: Res<EventWriter<Manifold>>,
     up: Res<GlobalUp>,
     step: Res<GlobalStep>,
     ang_tol: Res<AngularTolerance>,
@@ -1084,7 +1084,7 @@ pub struct PhysicsStep {
 }
 
 impl PhysicsStep {
-    pub fn system(self, res: &mut Resources) -> Box<dyn System> {
+    pub fn system(self, res: &mut World) -> Box<impl System> {
         let system = physics_step_system.system();
         res.insert_local(system.id(), self);
         system

@@ -14,10 +14,11 @@ categories = ["game-development"]
 [dependencies]
 smallvec = "1.4"
 rstar = "0.8"
-hashbrown = "0.9"
+hashbrown = "0.11.2"
 serde = "1.0"
+bevy = "0.5.0"
 
-[dependencies.bevy]
-version = "0.3"
-git = "https://github.com/bevyengine/bevy.git"
-branch = "master"
+# [dependencies.bevy]
+# version = "0.5.0"
+# git = "https://github.com/bevyengine/bevy.git"
+# rev = "97d8e4e1793ede3df8c77ed44736e800b38ff7a4"

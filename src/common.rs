@@ -34,7 +34,7 @@ impl Default for GlobalFriction {
 }
 
 /// The mass of the object or an infinite mass.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Property)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum Mass {
     /// Infinite mass (useful for immobile static objects).
     Infinite,
@@ -70,7 +70,7 @@ impl From<f32> for Mass {
 }
 
 /// The status of a `RigidBody`
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Property)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Status {
     /// Static bodies do not check for collisions.
     ///

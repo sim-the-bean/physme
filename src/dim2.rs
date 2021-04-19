@@ -19,7 +19,7 @@ pub struct Physics2dPlugin;
 
 pub mod stage {
     #[doc(hidden)]
-    pub use bevy::prelude::stage::*;
+    pub use bevy::prelude::CoreStage;
 
     pub const COLLIDING_JOINT: &str = "colliding_joint";
     pub const PHYSICS_STEP: &str = "physics_step";
@@ -40,14 +40,14 @@ impl Plugin for Physics2dPlugin {
             .add_resource(GlobalUp::default())
             .add_resource(AngularTolerance::default())
             .add_event::<Manifold>()
-            .add_stage_before(stage::UPDATE, stage::PHYSICS_STEP)
+            .add_stage_before(CoreStage::UPDATE, stage::PHYSICS_STEP)
             .add_stage_before(stage::PHYSICS_STEP, stage::COLLIDING_JOINT)
             .add_stage_after(stage::PHYSICS_STEP, stage::BROAD_PHASE)
             .add_stage_after(stage::BROAD_PHASE, stage::NARROW_PHASE)
             .add_stage_after(stage::NARROW_PHASE, stage::PHYSICS_SOLVE)
             .add_stage_after(stage::PHYSICS_SOLVE, stage::RIGID_JOINT)
             .add_stage_after(stage::RIGID_JOINT, stage::SYNC_TRANSFORM);
-        let physics_step = PhysicsStep::default().system(app.resources_mut());
+        let physics_step = PhysicsStep::default().system(app.world_mut());
         app.add_system_to_stage(stage::PHYSICS_STEP, physics_step)
             .add_system_to_stage(stage::BROAD_PHASE, broad_phase_system.system())
             .add_system_to_stage(stage::NARROW_PHASE, narrow_phase_system.system());
@@ -208,7 +208,7 @@ impl Collider for Obb {
 }
 
 /// The two dimensional size of a `Shape`
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Property)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Reflect)]
 pub struct Size2 {
     pub width: f32,
     pub height: f32,
@@ -224,7 +224,7 @@ impl Size2 {
 /// The shape of a rigid body.
 ///
 /// Contains a rotation/translation offset and a size.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Properties)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Reflect)]
 pub struct Shape {
     offset: Vec2,
     size: Size2,
@@ -540,7 +540,7 @@ impl<B: JointBehaviour> Joint<B> {
 }
 
 /// The rigid body.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Properties)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Reflect)]
 pub struct RigidBody {
     /// Current position of this rigid body.
     pub position: Vec2,
@@ -780,9 +780,10 @@ pub struct NarrowPhase {
 }
 
 impl NarrowPhase {
-    pub fn system(self, res: &mut Resources) -> Box<dyn System> {
+    pub fn system(self, res: &mut World) -> Box<impl System> {
         let system = narrow_phase_system.system();
-        res.insert_local(system.id(), self);
+        
+        res.insert_local(system.id(), self); // TODO Find the correct replacement
         system
     }
 }
@@ -878,7 +879,7 @@ fn clip(n: Vec2, c: f32, face: &mut [Vec2]) -> usize {
 
 fn narrow_phase_system(
     mut state: Local<NarrowPhase>,
-    mut manifolds: ResMut<Events<Manifold>>,
+    mut manifolds: ResMut<EventWriter<Manifold>>,
     broad: Res<BroadPhase>,
 ) {
     state.set.clear();
@@ -982,26 +983,26 @@ fn narrow_phase_system(
 }
 
 #[derive(Default)]
-pub struct Solver {
-    reader: EventReader<Manifold>,
+pub struct Solver<'a> {
+    reader: EventReader<'a, Manifold>,
 }
 
-impl Solver {
-    pub fn system(self, res: &mut Resources) -> Box<dyn System> {
+impl<'a> Solver<'a> {
+    pub fn system(self, res: &mut World) -> Box<impl System> {
         let system = solve_system.system();
         res.insert_local(system.id(), self);
         system
     }
 }
 
-fn solve_system(
-    mut solver: Local<Solver>,
+fn solve_system<'a>(
+    mut solver: Local<Solver<'a>>,
     time: Res<Time>,
-    manifolds: Res<Events<Manifold>>,
+    manifolds: Res<EventWriter<Manifold>>,
     step: Res<GlobalStep>,
     up: Res<GlobalUp>,
     ang_tol: Res<AngularTolerance>,
-    mut query: Query<Mut<RigidBody>>,
+    mut query: Query<&mut RigidBody>,
 ) {
     let delta_time = time.delta.as_secs_f32();
 
@@ -1144,7 +1145,7 @@ pub struct PhysicsStep {
 }
 
 impl PhysicsStep {
-    pub fn system(self, res: &mut Resources) -> Box<dyn System> {
+    pub fn system(self, res: &mut World) -> Box<impl System> {
         let system = physics_step_system.system();
         res.insert_local(system.id(), self);
         system
@@ -1163,7 +1164,7 @@ fn physics_step_system(
     friction: Res<GlobalFriction>,
     gravity: Res<GlobalGravity>,
     up: Res<GlobalUp>,
-    mut query: Query<(Mut<RigidBody>, &Children)>,
+    mut query: Query<(&mut RigidBody, &Children)>,
     shapes: Query<&Shape>,
 ) {
     if state.skip > 0 {
@@ -1272,8 +1273,8 @@ fn physics_step_system(
 
 pub fn joint_system<B: JointBehaviour>(
     commands: &mut Commands,
-    mut query: Query<(Entity, Mut<Joint<B>>)>,
-    mut bodies: Query<Mut<RigidBody>>,
+    mut query: Query<(Entity, &mut Joint<B>)>,
+    mut bodies: Query<&mut RigidBody>,
 ) {
     for (e, mut joint) in query.iter_mut() {
         let anchor = if let Ok(anchor) = bodies.get_component::<RigidBody>(joint.inner.body1) {
@@ -1358,7 +1359,7 @@ impl Default for RotationMode {
 pub fn sync_transform_system(
     translation_mode: Res<TranslationMode>,
     rotation_mode: Res<RotationMode>,
-    mut query: Query<(&RigidBody, Mut<Transform>)>,
+    mut query: Query<(&RigidBody, &mut Transform)>,
 ) {
     for (body, mut transform) in query.iter_mut() {
         match *translation_mode {
