@@ -47,11 +47,11 @@ impl Plugin for Physics2dPlugin {
             .add_stage_after(stage::NARROW_PHASE, stage::PHYSICS_SOLVE)
             .add_stage_after(stage::PHYSICS_SOLVE, stage::RIGID_JOINT)
             .add_stage_after(stage::RIGID_JOINT, stage::SYNC_TRANSFORM);
-        let physics_step = PhysicsStep::default().system(app.world_mut());
+        let physics_step = physics_step_system.system().config(|_, local| *local = Some(PhysicsStep::default()));
         app.add_system_to_stage(stage::PHYSICS_STEP, physics_step)
             .add_system_to_stage(stage::BROAD_PHASE, broad_phase_system.system())
             .add_system_to_stage(stage::NARROW_PHASE, narrow_phase_system.system());
-        let solver = Solver::default().system(app.resources_mut());
+        let solver = solve_system.system().config(|_, local| *local = Some(Solver::default()));
         app.add_system_to_stage(stage::PHYSICS_SOLVE, solver)
             .add_system_to_stage(stage::SYNC_TRANSFORM, sync_transform_system.system())
             .add_system_to_stage(
@@ -779,15 +779,6 @@ pub struct NarrowPhase {
     set: HashSet<[Entity; 2]>,
 }
 
-impl NarrowPhase {
-    pub fn system(self, res: &mut World) -> Box<impl System> {
-        let system = narrow_phase_system.system();
-        
-        res.insert_local(system.id(), self); // TODO Find the correct replacement
-        system
-    }
-}
-
 fn bias_greater_than(a: f32, b: f32) -> bool {
     const BIAS_RELATIVE: f32 = 0.95;
     const BIAS_ABSOLUTE: f32 = 0.01;
@@ -990,13 +981,13 @@ pub struct Solver<'a> {
 impl<'a> Solver<'a> {
     pub fn system(self, res: &mut World) -> Box<impl System> {
         let system = solve_system.system();
-        res.insert_local(system.id(), self);
+        //res.insert_local(system.id(), self);
         system
     }
 }
 
 fn solve_system<'a>(
-    mut solver: Local<Solver<'a>>,
+    mut solver: EventReader<Manifold>,
     time: Res<Time>,
     manifolds: Res<EventWriter<Manifold>>,
     step: Res<GlobalStep>,
@@ -1006,7 +997,7 @@ fn solve_system<'a>(
 ) {
     let delta_time = time.delta.as_secs_f32();
 
-    for manifold in solver.reader.iter(&manifolds) {
+    for manifold in solver.iter(&manifolds) {
         let a = query.get_component::<RigidBody>(manifold.body1).unwrap();
         let b = query.get_component::<RigidBody>(manifold.body2).unwrap();
 
@@ -1142,14 +1133,6 @@ fn solve_system<'a>(
 
 pub struct PhysicsStep {
     skip: usize,
-}
-
-impl PhysicsStep {
-    pub fn system(self, res: &mut World) -> Box<impl System> {
-        let system = physics_step_system.system();
-        res.insert_local(system.id(), self);
-        system
-    }
 }
 
 impl Default for PhysicsStep {
