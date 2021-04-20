@@ -739,7 +739,7 @@ pub struct Manifold {
 }
 
 pub fn broad_phase_system(
-    commands: &mut Commands,
+    mut commands: Commands,
     query: Query<(Entity, &RigidBody, &Children)>,
     query2: Query<&Shape>,
 ) {
@@ -991,7 +991,7 @@ fn narrow_phase_system(
 fn solve_system(
     mut solver: EventReader<Manifold>,
     time: Res<Time>,
-    manifolds: Res<EventWriter<Manifold>>,
+    // manifolds: Res<EventWriter<Manifold>>,
     step: Res<GlobalStep>,
     up: Res<GlobalUp>,
     ang_tol: Res<AngularTolerance>,
@@ -1257,11 +1257,11 @@ fn physics_step_system(
 }
 
 pub fn joint_system<B: JointBehaviour>(
-    commands: &mut Commands,
+    //commands: Commands,
     mut query: Query<(Entity, &mut Joint<B>)>,
     mut bodies: Query<&mut RigidBody>,
 ) {
-    for (e, mut joint) in query.iter_mut() {
+    for (_e, mut joint) in query.iter_mut() {
         let anchor = if let Ok(anchor) = bodies.get_component::<RigidBody>(joint.inner.body1) {
             anchor
         } else {
