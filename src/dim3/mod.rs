@@ -1184,22 +1184,21 @@ fn physics_step_system(
 }
 
 pub fn joint_system<B: JointBehaviour>(
-    // commands: Commands,
+    mut commands: Commands,
     mut query: Query<(Entity, &mut Joint<B>)>,
     mut bodies: Query<&mut RigidBody>,
 ) {
-    for (_e, mut joint) in query.iter_mut() {
+    for (e, mut joint) in query.iter_mut() {
         let anchor = if let Ok(anchor) = bodies.get_component::<RigidBody>(joint.inner.body1) {
             anchor
         } else {
-            // find way to despawn_recursive
-            // commands.despawn_recursive(e);
+            commands.entity(e).despawn_recursive();
             continue;
         };
         let target = if let Ok(target) = bodies.get_component::<RigidBody>(joint.inner.body2) {
             target
         } else {
-            // commands.despawn_recursive(e);
+            commands.entity(e).despawn_recursive();
             continue;
         };
         let offset = joint.inner.offset;

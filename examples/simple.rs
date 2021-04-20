@@ -31,8 +31,6 @@ fn setup(
     let icon = asset_server.load("icon.png");
     let plat = asset_server.load("platform.png");
     let square = asset_server.load("square.png");
-    // let mut anchor = None;
-    // let mut target = None;
 
     // Spawn the damn camera
     commands
@@ -40,7 +38,7 @@ fn setup(
 
 
     // Spawn character
-    commands
+    let player_id = commands
         .spawn_bundle(SpriteBundle {
             material: materials.add(icon.into()),
             ..Default::default()
@@ -55,7 +53,9 @@ fn setup(
         .insert(CharacterController::default())
         .with_children(|parent| {
             parent.spawn_bundle((Shape::from(Size2::new(28.0, 28.0)),));
-        });
+        }).id();
+    
+    
         // .for_current_entity(|e| anchor = Some(e))
     // Spawn a really heavy object(i think its one of the floors)
     commands
@@ -150,7 +150,7 @@ fn setup(
         .with_children(|parent| {
             parent.spawn_bundle((Shape::from(Size2::new(20.0, 20.0)),));
         });
-    commands
+    let target_id = commands
         .spawn_bundle(SpriteBundle {
             material: materials.add(square.into()),
             ..Default::default()
@@ -162,7 +162,13 @@ fn setup(
         )
         .with_children(|parent| {
             parent.spawn_bundle((Shape::from(Size2::new(20.0, 20.0)),));
-        });
+        }).id();
+
+    commands
+        .spawn()
+        .insert(
+            SpringJoint::new(player_id, target_id).with_offset(Vec2::new(30.0,30.0))
+        );
         // .for_current_entity(|e| target = Some(e))
         // .spawn((
         //     SpringJoint::new(anchor.unwrap(), target.unwrap()).with_offset(Vec2::new(30.0, 30.0)),
