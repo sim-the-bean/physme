@@ -1,7 +1,7 @@
 [package]
 name = "physme"
 description = "A simple 2d and 3d physics engine for bevy"
-version = "0.2.4"
+version = "0.2.5"
 authors = ["Szymon Walter <waltersz@protonmail.com>"]
 edition = "2018"
 readme = "README.md"
