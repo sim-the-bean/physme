@@ -73,8 +73,8 @@ impl Point for NPoint<Vec2> {
 
     fn nth(&self, index: usize) -> Self::Scalar {
         match index {
-            0 => self.0.x(),
-            1 => self.0.y(),
+            0 => self.0.x,
+            1 => self.0.y,
             // unreachable according to the rstart 0.8 docs
             _ => unreachable!(),
         }
@@ -82,8 +82,8 @@ impl Point for NPoint<Vec2> {
 
     fn nth_mut(&mut self, index: usize) -> &mut Self::Scalar {
         match index {
-            0 => self.0.x_mut(),
-            1 => self.0.y_mut(),
+            0 => &mut self.0.x,
+            1 => &mut self.0.y,
             // unreachable according to the rstart 0.8 docs
             _ => unreachable!(),
         }
@@ -101,9 +101,9 @@ impl Point for NPoint<Vec3> {
 
     fn nth(&self, index: usize) -> Self::Scalar {
         match index {
-            0 => self.0.x(),
-            1 => self.0.y(),
-            2 => self.0.z(),
+            0 => self.0.x,
+            1 => self.0.y,
+            2 => self.0.z,
             // unreachable according to the rstart 0.8 docs
             _ => unreachable!(),
         }
@@ -111,9 +111,9 @@ impl Point for NPoint<Vec3> {
 
     fn nth_mut(&mut self, index: usize) -> &mut Self::Scalar {
         match index {
-            0 => self.0.x_mut(),
-            1 => self.0.y_mut(),
-            2 => self.0.z_mut(),
+            0 => &mut self.0.x,
+            1 => &mut self.0.y,
+            2 => &mut self.0.z,
             // unreachable according to the rstart 0.8 docs
             _ => unreachable!(),
         }

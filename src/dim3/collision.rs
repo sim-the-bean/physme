@@ -72,9 +72,9 @@ trait Mat4Ext {
 impl Mat4Ext for Mat4 {
     fn truncate(&self) -> Mat3 {
         Mat3::from_cols(
-            self.x_axis().truncate().into(),
-            self.y_axis().truncate().into(),
-            self.z_axis().truncate().into(),
+            self.x_axis.truncate().into(),
+            self.y_axis.truncate().into(),
+            self.z_axis.truncate().into(),
         )
     }
 }
@@ -127,52 +127,52 @@ fn compute_incident_face(itx: Transform, e: Vec3, n: Vec3) -> [Vec3; 4] {
     let n = -itx.rotation.mult(n);
     let absn = n.abs();
     let itx_matrix = itx.compute_matrix();
-    if absn.x() > absn.y() && absn.x() > absn.z() {
-        if n.x() > 0.0 {
+    if absn.x > absn.y && absn.x > absn.z {
+        if n.x > 0.0 {
             [
-                itx_matrix.transform_point3(Vec3::new(e.x(), e.y(), -e.z())),
-                itx_matrix.transform_point3(Vec3::new(e.x(), e.y(), e.z())),
-                itx_matrix.transform_point3(Vec3::new(e.x(), -e.y(), e.z())),
-                itx_matrix.transform_point3(Vec3::new(e.x(), -e.y(), -e.z())),
+                itx_matrix.transform_point3(Vec3::new(e.x, e.y, -e.z)),
+                itx_matrix.transform_point3(Vec3::new(e.x, e.y, e.z)),
+                itx_matrix.transform_point3(Vec3::new(e.x, -e.y, e.z)),
+                itx_matrix.transform_point3(Vec3::new(e.x, -e.y, -e.z)),
             ]
         } else {
             [
-                itx_matrix.transform_point3(Vec3::new(-e.x(), -e.y(), e.z())),
-                itx_matrix.transform_point3(Vec3::new(-e.x(), e.y(), e.z())),
-                itx_matrix.transform_point3(Vec3::new(-e.x(), e.y(), -e.z())),
-                itx_matrix.transform_point3(Vec3::new(-e.x(), -e.y(), -e.z())),
+                itx_matrix.transform_point3(Vec3::new(-e.x, -e.y, e.z)),
+                itx_matrix.transform_point3(Vec3::new(-e.x, e.y, e.z)),
+                itx_matrix.transform_point3(Vec3::new(-e.x, e.y, -e.z)),
+                itx_matrix.transform_point3(Vec3::new(-e.x, -e.y, -e.z)),
             ]
         }
-    } else if absn.y() > absn.x() && absn.y() > absn.z() {
-        if n.y() > 0.0 {
+    } else if absn.y > absn.x && absn.y > absn.z {
+        if n.y > 0.0 {
             [
-                itx_matrix.transform_point3(Vec3::new(-e.x(), e.y(), e.z())),
-                itx_matrix.transform_point3(Vec3::new(e.x(), e.y(), e.z())),
-                itx_matrix.transform_point3(Vec3::new(e.x(), e.y(), -e.z())),
-                itx_matrix.transform_point3(Vec3::new(-e.x(), e.y(), -e.z())),
+                itx_matrix.transform_point3(Vec3::new(-e.x, e.y, e.z)),
+                itx_matrix.transform_point3(Vec3::new(e.x, e.y, e.z)),
+                itx_matrix.transform_point3(Vec3::new(e.x, e.y, -e.z)),
+                itx_matrix.transform_point3(Vec3::new(-e.x, e.y, -e.z)),
             ]
         } else {
             [
-                itx_matrix.transform_point3(Vec3::new(e.x(), -e.y(), e.z())),
-                itx_matrix.transform_point3(Vec3::new(-e.x(), -e.y(), e.z())),
-                itx_matrix.transform_point3(Vec3::new(-e.x(), -e.y(), -e.z())),
-                itx_matrix.transform_point3(Vec3::new(e.x(), -e.y(), -e.z())),
+                itx_matrix.transform_point3(Vec3::new(e.x, -e.y, e.z)),
+                itx_matrix.transform_point3(Vec3::new(-e.x, -e.y, e.z)),
+                itx_matrix.transform_point3(Vec3::new(-e.x, -e.y, -e.z)),
+                itx_matrix.transform_point3(Vec3::new(e.x, -e.y, -e.z)),
             ]
         }
     } else {
-        if n.z() > 0.0 {
+        if n.z > 0.0 {
             [
-                itx_matrix.transform_point3(Vec3::new(-e.x(), e.y(), e.z())),
-                itx_matrix.transform_point3(Vec3::new(-e.x(), -e.y(), e.z())),
-                itx_matrix.transform_point3(Vec3::new(e.x(), -e.y(), e.z())),
-                itx_matrix.transform_point3(Vec3::new(e.x(), e.y(), e.z())),
+                itx_matrix.transform_point3(Vec3::new(-e.x, e.y, e.z)),
+                itx_matrix.transform_point3(Vec3::new(-e.x, -e.y, e.z)),
+                itx_matrix.transform_point3(Vec3::new(e.x, -e.y, e.z)),
+                itx_matrix.transform_point3(Vec3::new(e.x, e.y, e.z)),
             ]
         } else {
             [
-                itx_matrix.transform_point3(Vec3::new(e.x(), -e.y(), -e.z())),
-                itx_matrix.transform_point3(Vec3::new(-e.x(), -e.y(), -e.z())),
-                itx_matrix.transform_point3(Vec3::new(-e.x(), e.y(), -e.z())),
-                itx_matrix.transform_point3(Vec3::new(e.x(), e.y(), -e.z())),
+                itx_matrix.transform_point3(Vec3::new(e.x, -e.y, -e.z)),
+                itx_matrix.transform_point3(Vec3::new(-e.x, -e.y, -e.z)),
+                itx_matrix.transform_point3(Vec3::new(-e.x, e.y, -e.z)),
+                itx_matrix.transform_point3(Vec3::new(e.x, e.y, -e.z)),
             ]
         }
     }
@@ -191,17 +191,17 @@ fn compute_reference_edges_and_basis(er: Vec3, rtx: Transform, mut axis: u32) ->
     let rot = rtx.compute_matrix().truncate();
     match axis {
         0 => {
-            let e = Vec3::new(er.z(), er.y(), er.x());
+            let e = Vec3::new(er.z, er.y, er.x);
             let basis = rot * Mat3::from_quat(Quat::from_rotation_y(90.0_f32.to_radians()));
             RefEb { basis, e }
         }
         1 => {
-            let e = Vec3::new(er.x(), er.z(), er.y());
+            let e = Vec3::new(er.x, er.z, er.y);
             let basis = rot * Mat3::from_quat(Quat::from_rotation_x(90.0_f32.to_radians()));
             RefEb { basis, e }
         }
         2 => {
-            let e = Vec3::new(er.x(), er.y(), er.z());
+            let e = Vec3::new(er.x, er.y, er.z);
             let basis = rot;
             RefEb { basis, e }
         }
@@ -264,30 +264,30 @@ fn clip(rpos: Vec3, e: Vec3, basis: Mat3, incident: [Vec3; 4]) -> Clip {
         vin.push(basis.mult(inc - rpos));
     }
 
-    vout = orthographic(1.0, e.x(), 0, vin.as_slice());
+    vout = orthographic(1.0, e.x, 0, vin.as_slice());
 
     if vout.is_empty() {
         return Clip::default();
     }
 
-    vin = orthographic(1.0, e.y(), 1, vout.as_slice());
+    vin = orthographic(1.0, e.y, 1, vout.as_slice());
 
     if vin.is_empty() {
         return Clip::default();
     }
 
-    vout = orthographic(-1.0, e.x(), 0, vin.as_slice());
+    vout = orthographic(-1.0, e.x, 0, vin.as_slice());
 
     if vout.is_empty() {
         return Clip::default();
     }
 
-    vin = orthographic(-1.0, e.y(), 1, vout.as_slice());
+    vin = orthographic(-1.0, e.y, 1, vout.as_slice());
 
     let mut clipped = SmallVec::new();
 
     for cv in vin {
-        let d = cv.z() - e.z();
+        let d = cv.z - e.z;
 
         if d <= 0.0 {
             let vertex = basis * cv + rpos;
@@ -325,21 +325,21 @@ fn support_edge(tx: Transform, e: Vec3, n: Vec3) -> [Vec3; 2] {
     let a;
     let b;
 
-    if absn.x() > absn.y() {
-        if absn.y() > absn.z() {
-            a = Vec3::new(e.x(), e.y(), e.z());
-            b = Vec3::new(e.x(), e.y(), -e.z());
+    if absn.x > absn.y {
+        if absn.y > absn.z {
+            a = Vec3::new(e.x, e.y, e.z);
+            b = Vec3::new(e.x, e.y, -e.z);
         } else {
-            a = Vec3::new(e.x(), e.y(), e.z());
-            b = Vec3::new(e.x(), -e.y(), e.z());
+            a = Vec3::new(e.x, e.y, e.z);
+            b = Vec3::new(e.x, -e.y, e.z);
         }
     } else {
-        if absn.x() > absn.z() {
-            a = Vec3::new(e.x(), e.y(), e.z());
-            b = Vec3::new(e.x(), e.y(), -e.z());
+        if absn.x > absn.z {
+            a = Vec3::new(e.x, e.y, e.z);
+            b = Vec3::new(e.x, e.y, -e.z);
         } else {
-            a = Vec3::new(e.x(), e.y(), e.z());
-            b = Vec3::new(-e.x(), e.y(), e.z());
+            a = Vec3::new(e.x, e.y, e.z);
+            b = Vec3::new(-e.x, e.y, e.z);
         }
     }
 
@@ -397,13 +397,13 @@ pub fn box_to_box(a: &Obb, b: &Obb) -> Option<Manifold> {
     let mut aaxis = u32::MAX;
     let mut baxis = u32::MAX;
     let mut eaxis = u32::MAX;
-    let mut na = Vec3::zero();
-    let mut nb = Vec3::zero();
-    let mut ne = Vec3::zero();
+    let mut na = Vec3::ZERO;
+    let mut nb = Vec3::ZERO;
+    let mut ne = Vec3::ZERO;
 
     let atxr = atx.compute_matrix().truncate();
 
-    s = t.x().abs() - (ea.x() + absc.column0().dot(eb));
+    s = t.x.abs() - (ea.x + absc.column0().dot(eb));
     match track_face_axis(0, s, amax, atxr.row0()) {
         TrackFaceAxis::None => return None,
         TrackFaceAxis::Some { max, axis, normal } => {
@@ -414,7 +414,7 @@ pub fn box_to_box(a: &Obb, b: &Obb) -> Option<Manifold> {
         _ => {}
     }
 
-    s = t.y().abs() - (ea.y() + absc.column1().dot(eb));
+    s = t.y.abs() - (ea.y + absc.column1().dot(eb));
     match track_face_axis(1, s, amax, atxr.row1()) {
         TrackFaceAxis::None => return None,
         TrackFaceAxis::Some { max, axis, normal } => {
@@ -425,7 +425,7 @@ pub fn box_to_box(a: &Obb, b: &Obb) -> Option<Manifold> {
         _ => {}
     }
 
-    s = t.z().abs() - (ea.z() + absc.column2().dot(eb));
+    s = t.z.abs() - (ea.z + absc.column2().dot(eb));
     match track_face_axis(2, s, amax, atxr.row2()) {
         TrackFaceAxis::None => return None,
         TrackFaceAxis::Some { max, axis, normal } => {
@@ -438,7 +438,7 @@ pub fn box_to_box(a: &Obb, b: &Obb) -> Option<Manifold> {
 
     let btxr = btx.compute_matrix().truncate();
 
-    s = t.dot(c.row0()).abs() - (eb.x() + absc.row0().dot(ea));
+    s = t.dot(c.row0()).abs() - (eb.x + absc.row0().dot(ea));
     match track_face_axis(3, s, bmax, btxr.row0()) {
         TrackFaceAxis::None => return None,
         TrackFaceAxis::Some { max, axis, normal } => {
@@ -449,7 +449,7 @@ pub fn box_to_box(a: &Obb, b: &Obb) -> Option<Manifold> {
         _ => {}
     }
 
-    s = t.dot(c.row1()).abs() - (eb.y() + absc.row1().dot(ea));
+    s = t.dot(c.row1()).abs() - (eb.y + absc.row1().dot(ea));
     match track_face_axis(4, s, bmax, btxr.row1()) {
         TrackFaceAxis::None => return None,
         TrackFaceAxis::Some { max, axis, normal } => {
@@ -460,7 +460,7 @@ pub fn box_to_box(a: &Obb, b: &Obb) -> Option<Manifold> {
         _ => {}
     }
 
-    s = t.dot(c.row2()).abs() - (eb.z() + absc.row2().dot(ea));
+    s = t.dot(c.row2()).abs() - (eb.z + absc.row2().dot(ea));
     match track_face_axis(5, s, bmax, btxr.row2()) {
         TrackFaceAxis::None => return None,
         TrackFaceAxis::Some { max, axis, normal } => {
@@ -475,9 +475,9 @@ pub fn box_to_box(a: &Obb, b: &Obb) -> Option<Manifold> {
         let mut ra;
         let mut rb;
 
-        ra = ea.y() * absca[2][0] + ea.z() * absca[1][0];
-        rb = eb.y() * absca[0][2] + eb.z() * absca[0][1];
-        s = (t.z() * ca[1][0] - t.y() * ca[2][0]).abs() - (ra + rb);
+        ra = ea.y * absca[2][0] + ea.z * absca[1][0];
+        rb = eb.y * absca[0][2] + eb.z * absca[0][1];
+        s = (t.z * ca[1][0] - t.y * ca[2][0]).abs() - (ra + rb);
         let normal = Vec3::new(0.0, -ca[2][0], ca[1][0]);
         match track_edge_axis(6, s, emax, normal) {
             TrackEdgeAxis::None => return None,
@@ -489,9 +489,9 @@ pub fn box_to_box(a: &Obb, b: &Obb) -> Option<Manifold> {
             _ => {}
         }
 
-        ra = ea.y() * absca[2][1] + ea.z() * absca[1][1];
-        rb = eb.x() * absca[0][2] + eb.z() * absca[0][0];
-        s = (t.z() * ca[1][1] - t.y() * ca[2][1]).abs() - (ra + rb);
+        ra = ea.y * absca[2][1] + ea.z * absca[1][1];
+        rb = eb.x * absca[0][2] + eb.z * absca[0][0];
+        s = (t.z * ca[1][1] - t.y * ca[2][1]).abs() - (ra + rb);
         let normal = Vec3::new(0.0, -ca[2][1], ca[1][1]);
         match track_edge_axis(7, s, emax, normal) {
             TrackEdgeAxis::None => return None,
@@ -503,9 +503,9 @@ pub fn box_to_box(a: &Obb, b: &Obb) -> Option<Manifold> {
             _ => {}
         }
 
-        ra = ea.y() * absca[2][2] + ea.z() * absca[1][2];
-        rb = eb.x() * absca[0][1] + eb.y() * absca[0][0];
-        s = (t.z() * ca[1][2] - t.y() * ca[2][2]).abs() - (ra + rb);
+        ra = ea.y * absca[2][2] + ea.z * absca[1][2];
+        rb = eb.x * absca[0][1] + eb.y * absca[0][0];
+        s = (t.z * ca[1][2] - t.y * ca[2][2]).abs() - (ra + rb);
         let normal = Vec3::new(0.0, -ca[2][2], ca[1][2]);
         match track_edge_axis(8, s, emax, normal) {
             TrackEdgeAxis::None => return None,
@@ -517,9 +517,9 @@ pub fn box_to_box(a: &Obb, b: &Obb) -> Option<Manifold> {
             _ => {}
         }
 
-        ra = ea.x() * absca[2][0] + ea.z() * absca[0][0];
-        rb = eb.y() * absca[1][2] + eb.z() * absca[1][1];
-        s = (t.x() * ca[2][0] - t.z() * ca[0][0]).abs() - (ra + rb);
+        ra = ea.x * absca[2][0] + ea.z * absca[0][0];
+        rb = eb.y * absca[1][2] + eb.z * absca[1][1];
+        s = (t.x * ca[2][0] - t.z * ca[0][0]).abs() - (ra + rb);
         let normal = Vec3::new(ca[2][0], 0.0, -ca[0][0]);
         match track_edge_axis(9, s, emax, normal) {
             TrackEdgeAxis::None => return None,
@@ -531,9 +531,9 @@ pub fn box_to_box(a: &Obb, b: &Obb) -> Option<Manifold> {
             _ => {}
         }
 
-        ra = ea.x() * absca[2][1] + ea.z() * absca[0][1];
-        rb = eb.x() * absca[1][2] + eb.z() * absca[1][0];
-        s = (t.x() * ca[2][1] - t.z() * ca[0][1]).abs() - (ra + rb);
+        ra = ea.x * absca[2][1] + ea.z * absca[0][1];
+        rb = eb.x * absca[1][2] + eb.z * absca[1][0];
+        s = (t.x * ca[2][1] - t.z * ca[0][1]).abs() - (ra + rb);
         let normal = Vec3::new(ca[2][1], 0.0, -ca[0][1]);
         match track_edge_axis(10, s, emax, normal) {
             TrackEdgeAxis::None => return None,
@@ -545,9 +545,9 @@ pub fn box_to_box(a: &Obb, b: &Obb) -> Option<Manifold> {
             _ => {}
         }
 
-        ra = ea.x() * absca[2][2] + ea.z() * absca[0][2];
-        rb = eb.x() * absca[1][1] + eb.y() * absca[1][0];
-        s = (t.x() * ca[2][2] - t.z() * ca[0][2]).abs() - (ra + rb);
+        ra = ea.x * absca[2][2] + ea.z * absca[0][2];
+        rb = eb.x * absca[1][1] + eb.y * absca[1][0];
+        s = (t.x * ca[2][2] - t.z * ca[0][2]).abs() - (ra + rb);
         let normal = Vec3::new(ca[2][2], 0.0, -ca[0][2]);
         match track_edge_axis(11, s, emax, normal) {
             TrackEdgeAxis::None => return None,
@@ -559,9 +559,9 @@ pub fn box_to_box(a: &Obb, b: &Obb) -> Option<Manifold> {
             _ => {}
         }
 
-        ra = ea.x() * absca[1][0] + ea.y() * absca[0][0];
-        rb = eb.y() * absca[2][2] + eb.z() * absca[2][1];
-        s = (t.y() * ca[0][0] - t.x() * ca[1][0]).abs() - (ra + rb);
+        ra = ea.x * absca[1][0] + ea.y * absca[0][0];
+        rb = eb.y * absca[2][2] + eb.z * absca[2][1];
+        s = (t.y * ca[0][0] - t.x * ca[1][0]).abs() - (ra + rb);
         let normal = Vec3::new(-ca[1][0], ca[0][0], 0.0);
         match track_edge_axis(12, s, emax, normal) {
             TrackEdgeAxis::None => return None,
@@ -573,9 +573,9 @@ pub fn box_to_box(a: &Obb, b: &Obb) -> Option<Manifold> {
             _ => {}
         }
 
-        ra = ea.x() * absca[1][1] + ea.y() * absca[0][1];
-        rb = eb.x() * absca[2][2] + eb.z() * absca[2][0];
-        s = (t.y() * ca[0][1] - t.x() * ca[1][1]).abs() - (ra + rb);
+        ra = ea.x * absca[1][1] + ea.y * absca[0][1];
+        rb = eb.x * absca[2][2] + eb.z * absca[2][0];
+        s = (t.y * ca[0][1] - t.x * ca[1][1]).abs() - (ra + rb);
         let normal = Vec3::new(-ca[1][1], ca[0][1], 0.0);
         match track_edge_axis(13, s, emax, normal) {
             TrackEdgeAxis::None => return None,
@@ -587,9 +587,9 @@ pub fn box_to_box(a: &Obb, b: &Obb) -> Option<Manifold> {
             _ => {}
         }
 
-        ra = ea.x() * absca[1][2] + ea.y() * absca[0][2];
-        rb = eb.x() * absca[2][1] + eb.y() * absca[2][0];
-        s = (t.y() * ca[0][2] - t.x() * ca[1][2]).abs() - (ra + rb);
+        ra = ea.x * absca[1][2] + ea.y * absca[0][2];
+        rb = eb.x * absca[2][1] + eb.y * absca[2][0];
+        s = (t.y * ca[0][2] - t.x * ca[1][2]).abs() - (ra + rb);
         let normal = Vec3::new(-ca[1][2], ca[0][2], 0.0);
         match track_edge_axis(14, s, emax, normal) {
             TrackEdgeAxis::None => return None,

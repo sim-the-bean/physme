@@ -14,7 +14,7 @@ impl Vec3Ext for Vec3 {
     fn quat_between(&self, other: Vec3) -> Quat {
         let dot = self.dot(other);
         if dot > 0.995 || dot < -0.995 {
-            return Quat::identity();
+            return Quat::IDENTITY;
         }
 
         let axis = self.cross(other);

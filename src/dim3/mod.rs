@@ -34,24 +34,27 @@ pub mod stage {
 
 impl Plugin for Physics3dPlugin {
     fn build(&self, app: &mut AppBuilder) {
-        app.add_resource(GlobalFriction::default())
-            .add_resource(GlobalGravity::default())
-            .add_resource(GlobalUp::default())
-            .add_resource(GlobalStep::default())
-            .add_resource(AngularTolerance::default())
+        app
+            .insert_resource(GlobalFriction::default())
+            .insert_resource(GlobalGravity::default())
+            .insert_resource(GlobalUp::default())
+            .insert_resource(GlobalStep::default())
+            .insert_resource(AngularTolerance::default())
             .add_event::<Manifold>()
-            .add_stage_before(CoreStage::UPDATE, stage::PHYSICS_STEP)
-            .add_stage_before(stage::PHYSICS_STEP, stage::COLLIDING_JOINT)
-            .add_stage_after(stage::PHYSICS_STEP, stage::BROAD_PHASE)
-            .add_stage_after(stage::BROAD_PHASE, stage::NARROW_PHASE)
-            .add_stage_after(stage::NARROW_PHASE, stage::PHYSICS_SOLVE)
-            .add_stage_after(stage::PHYSICS_SOLVE, stage::RIGID_JOINT)
-            .add_stage_after(stage::RIGID_JOINT, stage::SYNC_TRANSFORM);
-        let physics_step = PhysicsStep::default().system(app.resources_mut());
+            .add_stage_before(CoreStage::Update, stage::PHYSICS_STEP,SystemStage::single_threaded())
+            .add_stage_before(stage::PHYSICS_STEP, stage::COLLIDING_JOINT,SystemStage::single_threaded())
+            .add_stage_after(stage::PHYSICS_STEP, stage::BROAD_PHASE,SystemStage::single_threaded())
+            .add_stage_after(stage::BROAD_PHASE, stage::NARROW_PHASE,SystemStage::single_threaded())
+            .add_stage_after(stage::NARROW_PHASE, stage::PHYSICS_SOLVE,SystemStage::single_threaded())
+            .add_stage_after(stage::PHYSICS_SOLVE, stage::RIGID_JOINT,SystemStage::single_threaded())
+            .add_stage_after(stage::RIGID_JOINT, stage::SYNC_TRANSFORM,SystemStage::single_threaded());
+        let physics_step = physics_step_system.system().config(|local| local.0 = Some(PhysicsStep::default())); 
+        //PhysicsStep::default().system(app.resources_mut());
         app.add_system_to_stage(stage::PHYSICS_STEP, physics_step)
             .add_system_to_stage(stage::BROAD_PHASE, broad_phase_system.system())
             .add_system_to_stage(stage::NARROW_PHASE, narrow_phase_system.system());
-        let solver = Solver::default().system(app.resources_mut());
+        let solver = solve_system.system();
+         //Solver::default().system(app.resources_mut()); // We dont need this because it forces the Solver's insides to be 'static and it is dumb tbh
         app.add_system_to_stage(stage::PHYSICS_SOLVE, solver)
             .add_system_to_stage(stage::SYNC_TRANSFORM, sync_transform_system.system())
             .add_system_to_stage(
@@ -155,56 +158,56 @@ impl Obb {
     }
 
     pub fn v0(&self) -> Vec3 {
-        let v = Vec3::new(-self.extent.x(), -self.extent.y(), -self.extent.z());
+        let v = Vec3::new(-self.extent.x, -self.extent.y, -self.extent.z);
         self.transform
             .compute_matrix()
             .transform_point3(self.local.compute_matrix().transform_point3(v))
     }
 
     pub fn v1(&self) -> Vec3 {
-        let v = Vec3::new(self.extent.x(), -self.extent.y(), -self.extent.z());
+        let v = Vec3::new(self.extent.x, -self.extent.y, -self.extent.z);
         self.transform
             .compute_matrix()
             .transform_point3(self.local.compute_matrix().transform_point3(v))
     }
 
     pub fn v2(&self) -> Vec3 {
-        let v = Vec3::new(self.extent.x(), self.extent.y(), -self.extent.z());
+        let v = Vec3::new(self.extent.x, self.extent.y, -self.extent.z);
         self.transform
             .compute_matrix()
             .transform_point3(self.local.compute_matrix().transform_point3(v))
     }
 
     pub fn v3(&self) -> Vec3 {
-        let v = Vec3::new(-self.extent.x(), self.extent.y(), -self.extent.z());
+        let v = Vec3::new(-self.extent.x, self.extent.y, -self.extent.z);
         self.transform
             .compute_matrix()
             .transform_point3(self.local.compute_matrix().transform_point3(v))
     }
 
     pub fn v4(&self) -> Vec3 {
-        let v = Vec3::new(-self.extent.x(), -self.extent.y(), self.extent.z());
+        let v = Vec3::new(-self.extent.x, -self.extent.y, self.extent.z);
         self.transform
             .compute_matrix()
             .transform_point3(self.local.compute_matrix().transform_point3(v))
     }
 
     pub fn v5(&self) -> Vec3 {
-        let v = Vec3::new(self.extent.x(), -self.extent.y(), self.extent.z());
+        let v = Vec3::new(self.extent.x, -self.extent.y, self.extent.z);
         self.transform
             .compute_matrix()
             .transform_point3(self.local.compute_matrix().transform_point3(v))
     }
 
     pub fn v6(&self) -> Vec3 {
-        let v = Vec3::new(self.extent.x(), self.extent.y(), self.extent.z());
+        let v = Vec3::new(self.extent.x, self.extent.y, self.extent.z);
         self.transform
             .compute_matrix()
             .transform_point3(self.local.compute_matrix().transform_point3(v))
     }
 
     pub fn v7(&self) -> Vec3 {
-        let v = Vec3::new(-self.extent.x(), self.extent.y(), self.extent.z());
+        let v = Vec3::new(-self.extent.x, self.extent.y, self.extent.z);
         self.transform
             .compute_matrix()
             .transform_point3(self.local.compute_matrix().transform_point3(v))
@@ -213,68 +216,68 @@ impl Obb {
     pub fn min(&self) -> Vec3 {
         let min_x = self
             .v0()
-            .x()
-            .min(self.v1().x())
-            .min(self.v2().x())
-            .min(self.v3().x())
-            .min(self.v4().x())
-            .min(self.v5().x())
-            .min(self.v6().x())
-            .min(self.v7().x());
+            .x
+            .min(self.v1().x)
+            .min(self.v2().x)
+            .min(self.v3().x)
+            .min(self.v4().x)
+            .min(self.v5().x)
+            .min(self.v6().x)
+            .min(self.v7().x);
         let min_y = self
             .v0()
-            .y()
-            .min(self.v1().y())
-            .min(self.v2().y())
-            .min(self.v3().y())
-            .min(self.v4().y())
-            .min(self.v5().y())
-            .min(self.v6().y())
-            .min(self.v7().y());
+            .y
+            .min(self.v1().y)
+            .min(self.v2().y)
+            .min(self.v3().y)
+            .min(self.v4().y)
+            .min(self.v5().y)
+            .min(self.v6().y)
+            .min(self.v7().y);
         let min_z = self
             .v0()
-            .z()
-            .min(self.v1().z())
-            .min(self.v2().z())
-            .min(self.v3().z())
-            .min(self.v4().z())
-            .min(self.v5().z())
-            .min(self.v6().z())
-            .min(self.v7().z());
+            .z
+            .min(self.v1().z)
+            .min(self.v2().z)
+            .min(self.v3().z)
+            .min(self.v4().z)
+            .min(self.v5().z)
+            .min(self.v6().z)
+            .min(self.v7().z);
         Vec3::new(min_x, min_y, min_z)
     }
 
     pub fn max(&self) -> Vec3 {
         let max_x = self
             .v0()
-            .x()
-            .max(self.v1().x())
-            .max(self.v2().x())
-            .max(self.v3().x())
-            .max(self.v4().x())
-            .max(self.v5().x())
-            .max(self.v6().x())
-            .max(self.v7().x());
+            .x
+            .max(self.v1().x)
+            .max(self.v2().x)
+            .max(self.v3().x)
+            .max(self.v4().x)
+            .max(self.v5().x)
+            .max(self.v6().x)
+            .max(self.v7().x);
         let max_y = self
             .v0()
-            .y()
-            .max(self.v1().y())
-            .max(self.v2().y())
-            .max(self.v3().y())
-            .max(self.v4().y())
-            .max(self.v5().y())
-            .max(self.v6().y())
-            .max(self.v7().y());
+            .y
+            .max(self.v1().y)
+            .max(self.v2().y)
+            .max(self.v3().y)
+            .max(self.v4().y)
+            .max(self.v5().y)
+            .max(self.v6().y)
+            .max(self.v7().y);
         let max_z = self
             .v0()
-            .z()
-            .max(self.v1().z())
-            .max(self.v2().z())
-            .max(self.v3().z())
-            .max(self.v4().z())
-            .max(self.v5().z())
-            .max(self.v6().z())
-            .max(self.v7().z());
+            .z
+            .max(self.v1().z)
+            .max(self.v2().z)
+            .max(self.v3().z)
+            .max(self.v4().z)
+            .max(self.v5().z)
+            .max(self.v6().z)
+            .max(self.v7().z);
         Vec3::new(max_x, max_y, max_z)
     }
 }
@@ -322,7 +325,7 @@ pub struct Shape {
 impl Shape {
     /// Return a new `Shape` with a zero offset and a size.
     pub fn new(size: Size3) -> Self {
-        let local = Mat4::identity();
+        let local = Mat4::IDENTITY;
         Self { local, size }
     }
 
@@ -361,8 +364,8 @@ impl InnerJoint {
         Self {
             body1,
             body2,
-            offset: Vec3::zero(),
-            angle: Quat::identity(),
+            offset: Vec3::ZERO,
+            angle: Quat::IDENTITY,
         }
     }
 
@@ -474,7 +477,7 @@ impl JointBehaviour for MechanicalJointBehaviour {
         _anchor: &RigidBody,
         _target: &RigidBody,
     ) -> Option<Vec3> {
-        Some(Vec3::zero())
+        Some(Vec3::ZERO)
     }
 
     fn angular_velocity(
@@ -483,7 +486,7 @@ impl JointBehaviour for MechanicalJointBehaviour {
         _anchor: &RigidBody,
         _target: &RigidBody,
     ) -> Option<Quat> {
-        Some(Quat::identity())
+        Some(Quat::IDENTITY)
     }
 }
 
@@ -523,7 +526,7 @@ impl JointBehaviour for SpringJointBehaviour {
         _anchor: &RigidBody,
         _target: &RigidBody,
     ) -> Option<Vec3> {
-        Some(Vec3::zero())
+        Some(Vec3::ZERO)
     }
 
     fn angular_velocity(
@@ -532,7 +535,7 @@ impl JointBehaviour for SpringJointBehaviour {
         _anchor: &RigidBody,
         _target: &RigidBody,
     ) -> Option<Quat> {
-        Some(Quat::identity())
+        Some(Quat::IDENTITY)
     }
 
     fn linear_impulse(
@@ -675,16 +678,16 @@ impl RigidBody {
     /// Returns a new `RigidBody` with just a mass and all other components set to their defaults.
     pub fn new(mass: Mass) -> Self {
         Self {
-            position: Vec3::zero(),
-            lowest_position: Vec3::zero(),
-            rotation: Quat::identity(),
-            linvel: Vec3::zero(),
-            prev_linvel: Vec3::zero(),
+            position: Vec3::ZERO,
+            lowest_position: Vec3::ZERO,
+            rotation: Quat::IDENTITY,
+            linvel: Vec3::ZERO,
+            prev_linvel: Vec3::ZERO,
             terminal: Vec3::new(f32::INFINITY, f32::INFINITY, f32::INFINITY),
-            accumulator: Vec3::zero(),
-            dynamic_acc: Vec3::zero(),
-            angvel: Quat::identity(),
-            prev_angvel: Quat::identity(),
+            accumulator: Vec3::ZERO,
+            dynamic_acc: Vec3::ZERO,
+            angvel: Quat::IDENTITY,
+            prev_angvel: Quat::IDENTITY,
             ang_term: f32::INFINITY,
             status: Status::Semikinematic,
             mass: mass.scalar(),
@@ -878,17 +881,10 @@ pub struct NarrowPhase {
     set: HashSet<[Entity; 2]>,
 }
 
-impl NarrowPhase {
-    pub fn system(self, res: &mut World) -> Box<impl System> {
-        let system = narrow_phase_system.system();
-        res.insert_local(system.id(), self);
-        system
-    }
-}
 
 fn narrow_phase_system(
     mut state: Local<NarrowPhase>,
-    mut manifolds: ResMut<EventWriter<Manifold>>,
+    mut manifolds: EventWriter<Manifold>,
     broad: Res<BroadPhase>,
 ) {
     state.set.clear();
@@ -909,31 +905,18 @@ fn narrow_phase_system(
     }
 }
 
-#[derive(Default)]
-pub struct Solver<'a> {
-    reader: EventReader<'a, Manifold>,
-}
-
-impl<'a> Solver<'a> {
-    pub fn system(self, res: &mut World) -> Box<impl System> {
-        let system = solve_system.system();
-        res.insert_local(system.id(), self);
-        system
-    }
-}
-
 fn solve_system(
-    mut solver: Local<Solver>,
+    mut solver: EventReader<Manifold>,
     time: Res<Time>,
     manifolds: Res<EventWriter<Manifold>>,
     up: Res<GlobalUp>,
     step: Res<GlobalStep>,
     ang_tol: Res<AngularTolerance>,
-    mut query: Query<(Mut<RigidBody>, Option<Mut<Up>>)>,
+    mut query: Query<(&mut RigidBody, Option<&mut Up>)>,
 ) {
-    let delta_time = time.delta.as_secs_f32();
+    let delta_time = time.delta_seconds();
 
-    for manifold in solver.reader.iter(&manifolds) {
+    for manifold in solver.iter() {
         let a = query.get_component::<RigidBody>(manifold.body1).unwrap();
         let b = query.get_component::<RigidBody>(manifold.body2).unwrap();
 
@@ -1083,14 +1066,6 @@ pub struct PhysicsStep {
     skip: usize,
 }
 
-impl PhysicsStep {
-    pub fn system(self, res: &mut World) -> Box<impl System> {
-        let system = physics_step_system.system();
-        res.insert_local(system.id(), self);
-        system
-    }
-}
-
 impl Default for PhysicsStep {
     fn default() -> Self {
         PhysicsStep { skip: 3 }
@@ -1103,14 +1078,14 @@ fn physics_step_system(
     friction: Res<GlobalFriction>,
     gravity: Res<GlobalGravity>,
     global_up: Res<GlobalUp>,
-    mut query: Query<(Mut<RigidBody>, Option<(&Up, Mut<UpRotation>)>)>,
+    mut query: Query<(&mut RigidBody, Option<(&Up, &mut UpRotation)>)>,
 ) {
     if state.skip > 0 {
         state.skip -= 1;
         return;
     }
 
-    let delta_time = time.delta.as_secs_f32();
+    let delta_time = time.delta_seconds();
 
     for (mut body, local_up) in query.iter_mut() {
         if !body.active {
@@ -1124,34 +1099,34 @@ fn physics_step_system(
         let linvel = body.linvel + body.accumulator * delta_time;
         let linvel = linvel + body.dynamic_acc;
         body.linvel = linvel;
-        body.accumulator = Vec3::zero();
-        body.dynamic_acc = Vec3::zero();
+        body.accumulator = Vec3::ZERO;
+        body.dynamic_acc = Vec3::ZERO;
 
         if matches!(body.status, Status::Semikinematic) {
             let vel = body.linvel;
             let limit = body.terminal;
-            match vel.x().partial_cmp(&0.0) {
-                Some(Ordering::Less) => *body.linvel.x_mut() = vel.x().max(-limit.x()),
-                Some(Ordering::Greater) => *body.linvel.x_mut() = vel.x().min(limit.x()),
+            match vel.x.partial_cmp(&0.0) {
+                Some(Ordering::Less) => body.linvel.x = vel.x.max(-limit.x),
+                Some(Ordering::Greater) => body.linvel.x = vel.x.min(limit.x),
                 Some(Ordering::Equal) => {}
-                None => *body.linvel.x_mut() = 0.0,
+                None => body.linvel.x = 0.0,
             }
-            match vel.y().partial_cmp(&0.0) {
-                Some(Ordering::Less) => *body.linvel.y_mut() = vel.y().max(-limit.y()),
-                Some(Ordering::Greater) => *body.linvel.y_mut() = vel.y().min(limit.y()),
+            match vel.y.partial_cmp(&0.0) {
+                Some(Ordering::Less) => body.linvel.y = vel.y.max(-limit.y),
+                Some(Ordering::Greater) => body.linvel.y = vel.y.min(limit.y),
                 Some(Ordering::Equal) => {}
-                None => *body.linvel.y_mut() = 0.0,
+                None => body.linvel.y = 0.0,
             }
-            match vel.z().partial_cmp(&0.0) {
-                Some(Ordering::Less) => *body.linvel.z_mut() = vel.z().max(-limit.z()),
-                Some(Ordering::Greater) => *body.linvel.z_mut() = vel.z().min(limit.z()),
+            match vel.z.partial_cmp(&0.0) {
+                Some(Ordering::Less) => body.linvel.z = vel.z.max(-limit.z),
+                Some(Ordering::Greater) => body.linvel.z = vel.z.min(limit.z),
                 Some(Ordering::Equal) => {}
-                None => *body.linvel.z_mut() = 0.0,
+                None => body.linvel.z = 0.0,
             }
             let vel = body.angvel;
             let limit = body.ang_term;
             let (axis, mut angle) = vel.to_axis_angle();
-            match vel.w().partial_cmp(&0.0) {
+            match vel.w.partial_cmp(&0.0) {
                 Some(Ordering::Less) => {
                     angle = angle.max(-limit);
                     body.angvel = Quat::from_axis_angle(axis, angle);
@@ -1161,7 +1136,7 @@ fn physics_step_system(
                     body.angvel = Quat::from_axis_angle(axis, angle);
                 }
                 Some(Ordering::Equal) => {}
-                None => body.angvel = Quat::identity(),
+                None => body.angvel = Quat::IDENTITY,
             }
         }
 
@@ -1186,16 +1161,16 @@ fn physics_step_system(
 
         match body.status {
             Status::Semikinematic => {
-                if body.linvel.x().abs() <= body.prev_linvel.x().abs() {
-                    *body.linvel.x_mut() *= friction.0;
+                if body.linvel.x.abs() <= body.prev_linvel.x.abs() {
+                    body.linvel.x *= friction.0;
                 }
-                if body.linvel.y().abs() <= body.prev_linvel.y().abs() {
-                    *body.linvel.y_mut() *= friction.0;
+                if body.linvel.y.abs() <= body.prev_linvel.y.abs() {
+                    body.linvel.y *= friction.0;
                 }
-                if body.linvel.z().abs() <= body.prev_linvel.z().abs() {
-                    *body.linvel.z_mut() *= friction.0;
+                if body.linvel.z.abs() <= body.prev_linvel.z.abs() {
+                    body.linvel.z *= friction.0;
                 }
-                if body.angvel.w().abs() <= body.prev_angvel.w().abs() {
+                if body.angvel.w.abs() <= body.prev_angvel.w.abs() {
                     let (axis, mut angle) = body.angvel.to_axis_angle();
                     angle *= friction.0;
                     body.angvel = Quat::from_axis_angle(axis, angle);
@@ -1210,20 +1185,21 @@ fn physics_step_system(
 
 pub fn joint_system<B: JointBehaviour>(
     commands: &mut Commands,
-    mut query: Query<(Entity, Mut<Joint<B>>)>,
-    mut bodies: Query<Mut<RigidBody>>,
+    mut query: Query<(Entity, &mut Joint<B>)>,
+    mut bodies: Query<&mut RigidBody>,
 ) {
     for (e, mut joint) in query.iter_mut() {
         let anchor = if let Ok(anchor) = bodies.get_component::<RigidBody>(joint.inner.body1) {
             anchor
         } else {
-            commands.despawn_recursive(e);
+            // find way to despawn_recursive
+            // commands.despawn_recursive(e);
             continue;
         };
         let target = if let Ok(target) = bodies.get_component::<RigidBody>(joint.inner.body2) {
             target
         } else {
-            commands.despawn_recursive(e);
+            // commands.despawn_recursive(e);
             continue;
         };
         let offset = joint.inner.offset;
@@ -1265,7 +1241,7 @@ pub fn joint_system<B: JointBehaviour>(
     }
 }
 
-pub fn sync_transform_system(mut query: Query<(&RigidBody, Mut<Transform>)>) {
+pub fn sync_transform_system(mut query: Query<(&RigidBody, &mut Transform)>) {
     for (body, mut transform) in query.iter_mut() {
         transform.translation = body.position;
         transform.rotation = body.rotation;
