@@ -12,174 +12,191 @@ fn main() {
     builder
         .add_plugins(DefaultPlugins)
         .add_plugin(Physics2dPlugin)
-        .add_resource(GlobalGravity(Vec2::new(0.0, -500.0)))
-        .add_resource(GlobalFriction(0.90))
-        .add_resource(GlobalStep(15.0))
-        .add_resource(GlobalUp(Vec2::new(0.0, 1.0)))
-        .add_startup_system(setup.system());
-    let character_system = CharacterControllerSystem::default().system(builder.resources_mut());
-    builder.add_system(character_system);
+        .insert_resource(GlobalGravity(Vec2::new(0.0, -500.0)))
+        .insert_resource(GlobalFriction(0.90))
+        .insert_resource(GlobalStep(15.0))
+        .insert_resource(GlobalUp(Vec2::new(0.0, 1.0)))
+        .add_startup_system(setup.system())
+        .add_system(bevy::input::system::exit_on_esc_system.system());
+    // let character_system = CharacterControllerSystem::default().system(builder.resources_mut());
+    builder.add_system(character_system.system());
     builder.run();
 }
 
 fn setup(
-    commands: &mut Commands,
+    mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     let icon = asset_server.load("icon.png");
     let plat = asset_server.load("platform.png");
     let square = asset_server.load("square.png");
-    let mut anchor = None;
-    let mut target = None;
+    // let mut anchor = None;
+    // let mut target = None;
+
+    // Spawn the damn camera
     commands
-        .spawn(Camera2dComponents::default())
-        .spawn(SpriteComponents {
+        .spawn_bundle(OrthographicCameraBundle::new_2d());
+
+
+    // Spawn character
+    commands
+        .spawn_bundle(SpriteBundle {
             material: materials.add(icon.into()),
             ..Default::default()
         })
-        .with(
+        .insert(
             RigidBody::new(Mass::Real(1.0))
                 .with_status(Status::Semikinematic)
                 .with_position(Vec2::new(0.0, 0.0))
                 .with_terminal(Vec2::new(500.0, 1000.0))
                 .with_angular_terminal(7.8),
         )
-        .with(CharacterController::default())
+        .insert(CharacterController::default())
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size2::new(28.0, 28.0)),));
-        })
-        .for_current_entity(|e| anchor = Some(e))
-        .spawn(SpriteComponents {
+            parent.spawn_bundle((Shape::from(Size2::new(28.0, 28.0)),));
+        });
+        // .for_current_entity(|e| anchor = Some(e))
+    // Spawn a really heavy object(i think its one of the floors)
+    commands
+        .spawn_bundle(SpriteBundle {
             material: materials.add(plat.clone_weak().into()),
             ..Default::default()
         })
-        .with(
+        .insert(
             RigidBody::new(Mass::Infinite)
                 .with_status(Status::Static)
                 .with_position(Vec2::new(0.0, -100.0)),
         )
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size2::new(120.0, 20.0)),));
-        })
-        .spawn(SpriteComponents {
+            parent.spawn_bundle((Shape::from(Size2::new(120.0, 20.0)),));
+        });
+    commands
+        .spawn_bundle(SpriteBundle {
             material: materials.add(plat.clone_weak().into()),
             ..Default::default()
         })
-        .with(
+        .insert(
             RigidBody::new(Mass::Infinite)
                 .with_status(Status::Static)
                 .with_position(Vec2::new(120.0, -90.0))
                 .with_rotation(10.0_f32.to_radians()),
         )
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size2::new(120.0, 20.0)),));
-        })
-        .spawn(SpriteComponents {
+            parent.spawn_bundle((Shape::from(Size2::new(120.0, 20.0)),));
+        });
+    commands
+        .spawn_bundle(SpriteBundle {
             material: materials.add(plat.clone_weak().into()),
             ..Default::default()
         })
-        .with(
+        .insert(
             RigidBody::new(Mass::Infinite)
                 .with_status(Status::Static)
                 .with_position(Vec2::new(-120.0, -90.0)),
         )
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size2::new(120.0, 20.0)),));
-        })
-        .spawn(SpriteComponents {
+            parent.spawn_bundle((Shape::from(Size2::new(120.0, 20.0)),));
+        });
+    commands
+        .spawn_bundle(SpriteBundle {
             material: materials.add(plat.clone_weak().into()),
             ..Default::default()
         })
-        .with(
+        .insert(
             RigidBody::new(Mass::Infinite)
                 .with_status(Status::Static)
                 .with_position(Vec2::new(360.0, -50.0)),
         )
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size2::new(120.0, 20.0)),));
-        })
-        .spawn(SpriteComponents {
+            parent.spawn_bundle((Shape::from(Size2::new(120.0, 20.0)),));
+        });
+    commands
+        .spawn_bundle(SpriteBundle {
             material: materials.add(plat.clone_weak().into()),
             ..Default::default()
         })
-        .with(
+        .insert(
             RigidBody::new(Mass::Infinite)
                 .with_status(Status::Static)
                 .with_position(Vec2::new(120.0, -10.0)),
         )
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size2::new(120.0, 20.0)),));
-        })
-        .spawn(SpriteComponents {
+            parent.spawn_bundle((Shape::from(Size2::new(120.0, 20.0)),));
+        });
+    commands
+        .spawn_bundle(SpriteBundle {
             material: materials.add(plat.into()),
             ..Default::default()
         })
-        .with(
+        .insert(
             RigidBody::new(Mass::Infinite)
                 .with_status(Status::Static)
                 .with_position(Vec2::new(-120.0, 20.0)),
         )
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size2::new(120.0, 20.0)),));
-        })
-        .spawn(SpriteComponents {
+            parent.spawn_bundle((Shape::from(Size2::new(120.0, 20.0)),));
+        });
+    commands
+        .spawn_bundle(SpriteBundle {
             material: materials.add(square.clone_weak().into()),
             ..Default::default()
         })
-        .with(
+        .insert(
             RigidBody::new(Mass::Real(1.0))
                 .with_status(Status::Semikinematic)
                 .with_position(Vec2::new(30.0, 60.0)),
         )
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size2::new(20.0, 20.0)),));
-        })
-        .spawn(SpriteComponents {
+            parent.spawn_bundle((Shape::from(Size2::new(20.0, 20.0)),));
+        });
+    commands
+        .spawn_bundle(SpriteBundle {
             material: materials.add(square.into()),
             ..Default::default()
         })
-        .with(
+        .insert(
             RigidBody::new(Mass::Real(1.0))
                 .with_status(Status::Semikinematic)
                 .with_position(Vec2::new(100.0, 100.0)),
         )
         .with_children(|parent| {
-            parent.spawn((Shape::from(Size2::new(20.0, 20.0)),));
-        })
-        .for_current_entity(|e| target = Some(e))
-        .spawn((
-            SpringJoint::new(anchor.unwrap(), target.unwrap()).with_offset(Vec2::new(30.0, 30.0)),
-        ));
+            parent.spawn_bundle((Shape::from(Size2::new(20.0, 20.0)),));
+        });
+        // .for_current_entity(|e| target = Some(e))
+        // .spawn((
+        //     SpringJoint::new(anchor.unwrap(), target.unwrap()).with_offset(Vec2::new(30.0, 30.0)),
+        // ));
 }
 
 #[derive(Default)]
-pub struct CharacterControllerSystem {
-    reader: EventReader<Manifold>,
-}
+pub struct CharacterControllerSystem;
+// {
+//     reader: EventReader<Manifold>,
+// }
 
-impl CharacterControllerSystem {
-    pub fn system(self, res: &mut Resources) -> Box<dyn System> {
-        let system = character_system.system();
-        res.insert_local(system.id(), self);
-        system
-    }
-}
+// impl CharacterControllerSystem {
+//     pub fn system(self, res: &mut Resources) -> Box<dyn System> {
+//         let system = character_system.system();
+//         res.insert_local(system.id(), self);
+//         system
+//     }
+// }
 
 fn character_system(
-    mut state: Local<CharacterControllerSystem>,
+    mut state: EventReader<Manifold>,
     input: Res<Input<KeyCode>>,
-    manifolds: Res<Events<Manifold>>,
-    mut query: Query<(Mut<CharacterController>, Mut<RigidBody>)>,
+    // manifolds: Res<Events<Manifold>>,
+    mut query: Query<(&mut CharacterController, &mut RigidBody)>,
 ) {
-    for manifold in state.reader.iter(&manifolds) {
-        if manifold.normal.y() < 0.0 {
+    for manifold in state.iter() {
+        if manifold.normal.y < 0.0 {
             if let Ok(mut controller) =
                 query.get_component_mut::<CharacterController>(manifold.body1)
             {
                 controller.on_ground = true;
             }
-        } else if manifold.normal.y() > 0.0 {
+        } else if manifold.normal.y > 0.0 {
             if let Ok(mut controller) =
                 query.get_component_mut::<CharacterController>(manifold.body2)
             {
