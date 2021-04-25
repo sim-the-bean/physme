@@ -3,7 +3,7 @@ use physme::prelude2d::*;
 
 #[derive(Default)]
 pub struct CharacterController {
-
+    double_jump : bool
 }
 
 fn main() {
@@ -190,12 +190,10 @@ fn setup(
     // commands
     //     .spawn()
     //     .insert(
-    //         SpringJoint::new(player_id, target_id).with_offset(Vec2::new(30.0,30.0))
+    //         SpringJoint::new(_player_id, _target_id)
+    //                     .with_offset(Vec2::new(30.0,30.0))
+    //                     .with_rigidness(2.0)
     //     );
-        // .for_current_entity(|e| target = Some(e))
-        // .spawn((
-        //     SpringJoint::new(anchor.unwrap(), target.unwrap()).with_offset(Vec2::new(30.0, 30.0)),
-        // ));
 }
 
 #[derive(Default)]
@@ -215,10 +213,9 @@ pub struct CharacterControllerSystem;
 fn character_system(
     input: Res<Input<KeyCode>>,
     gravity : Res<GlobalGravity>,
-    // manifolds: Res<Events<Manifold>>,
-    mut query: Query<(&CharacterController, &mut RigidBody)>,
+    mut query: Query<(&mut CharacterController, &mut RigidBody)>,
 ) {
-    for (_, mut body) in query.iter_mut() {
+    for (mut controller, mut body) in query.iter_mut() {
         if let Some(normal) = body.on_wall() {
             body.linvel -= normal * 0.1;
 
@@ -227,22 +224,35 @@ fn character_system(
             }
         }
 
+        let jump = |body : &mut RigidBody| {
+            body.linvel = body.linvel.slide(gravity.0.normalize()) - gravity.0 * 0.6;
+            let wall = body.on_wall().unwrap_or(Vec2::ZERO) * 250.0;
+            body.linvel += wall;
+        };
+
+        let should_jump = input.just_pressed(KeyCode::Space) || input.just_pressed(KeyCode::W);
         if body.on_floor().is_some() || body.on_wall().is_some() {
-            if input.just_pressed(KeyCode::Space) || input.just_pressed(KeyCode::W) {
+            controller.double_jump = true;
+
+            if should_jump {
                 // This is just a weird way to do jump, using the gravity direction and size(tho you dont need the size)
                 // it works by sliding on the gravity direction(so nothing in the direction of gravity)
                 // then adding the jump force(here its gravity * 0.5) to the velocity
-                body.linvel = body.linvel.slide(gravity.0.normalize()) - gravity.0 * 0.8;
-                let wall = body.on_wall().unwrap_or(Vec2::ZERO) * 250.0;
-                body.linvel += wall;
+                jump(&mut body);
             }
         }
+        else if controller.double_jump && should_jump {
+            controller.double_jump = false;
+            jump(&mut body);
+        }
+        // It might look like we need to multiply by delta_time but the apply_force function does it for us(in the physics step)
+        let acc = Vec2::new(1000.0,0.0);
         if input.pressed(KeyCode::A) {
-            body.apply_linear_impulse(Vec2::new(-5.0, 0.0));
+            body.apply_force(-acc);
             // body.apply_angular_impulse(1.0);
         }
         if input.pressed(KeyCode::D) {
-            body.apply_linear_impulse(Vec2::new(5.0, 0.0));
+            body.apply_force(acc);
             // body.apply_angular_impulse(-1.0);
         }
     }
