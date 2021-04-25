@@ -15,7 +15,11 @@ use crate::broad::{self, BoundingBox, Collider};
 use crate::common::*;
 
 /// This is what you want to add to your `App` if you want to run 2d physics simulation.
-pub struct Physics2dPlugin;
+pub struct Physics2dPlugin; // {
+    // friction : Vec2,
+    // gravity : Vec2,
+    // step : f32,
+// }
 
 pub mod stage {
     #[doc(hidden)]
@@ -574,6 +578,11 @@ pub struct RigidBody {
     inv_mass: f32,
     active: bool,
     sensor: bool,
+
+    // wether the body is touching a surface
+    on_floor : Option<Vec2>,
+    on_wall : Option<Vec2>,
+    on_ceil : Option<Vec2>,
 }
 
 impl RigidBody {
@@ -596,6 +605,9 @@ impl RigidBody {
             inv_mass: mass.inverse(),
             active: true,
             sensor: false,
+            on_floor : None,
+            on_wall : None,
+            on_ceil : None,
         }
     }
 
@@ -718,6 +730,19 @@ impl RigidBody {
     /// Returns the difference between the last known angular velocity and the current angular velocity.
     pub fn angular_deceleration(&self) -> f32 {
         self.prev_angvel.abs() - self.angvel.abs()
+    }
+
+    /// Get Floor normal if body is on floor
+    pub fn on_floor(&self) -> Option<Vec2> {
+        self.on_floor
+    }
+    /// Get wall normal if body is touching a wall
+    pub fn on_wall(&self) -> Option<Vec2> {
+        self.on_wall
+    }
+    /// Get ceilling normal if body is touching a ceiling
+    pub fn on_ceil(&self) -> Option<Vec2> {
+        self.on_ceil
     }
 }
 
@@ -990,14 +1015,14 @@ fn narrow_phase_system(
 
 fn solve_system(
     mut solver: EventReader<Manifold>,
-    time: Res<Time>,
+    // time: Res<Time>,
     // manifolds: Res<EventWriter<Manifold>>,
-    step: Res<GlobalStep>,
+    // step: Res<GlobalStep>,
     up: Res<GlobalUp>,
     ang_tol: Res<AngularTolerance>,
     mut query: Query<&mut RigidBody>,
 ) {
-    let delta_time = time.delta_seconds();
+    // let delta_time = time.delta_seconds();
 
     for manifold in solver.iter() {
         let a = query.get_component::<RigidBody>(manifold.body1).unwrap();
@@ -1015,10 +1040,10 @@ fn solve_system(
                 let ar = a.linvel * a.mass;
                 let rv = br * sum_recip - ar * sum_recip;
 
-                let impulse = -rv * manifold.normal.abs();
+                let impulse = rv.project(manifold.normal);
 
-                let a = a.linvel - impulse;
-                let b = b.linvel + impulse;
+                let a = impulse;
+                let b = -impulse;
                 Some((a, b))
             } else {
                 None
@@ -1033,48 +1058,16 @@ fn solve_system(
         match a.status {
             Status::Static => {}
             Status::Semikinematic => {
-                if let Some((impulse, _)) = dynamics {
-                    a.dynamic_acc += impulse;
-
-                    let d = -manifold.normal * manifold.penetration;
-                    let v = a.linvel * delta_time;
-                    if v.signum() == d.signum() {
-                        // nothing
-                    } else {
-                        a.linvel *= Vec2::new(manifold.normal.y.abs(), manifold.normal.x.abs());
-                        a.position += d;
-                    }
-                } else {
-                    let mut solve = true;
-                    let step_angle = up.0.abs().dot(manifold.normal.abs()).acos();
-                    if step_angle > ang_tol.0 {
-                        let up_vector = up.0;
-                        if up_vector.length_squared() != 0.0 {
-                            for &point in &manifold.contacts {
-                                let d = point - a.lowest_position;
-                                let s = d.dot(up_vector);
-                                if s < step.0 {
-                                    let diff = a.position - a.lowest_position;
-                                    a.lowest_position += up_vector * s;
-                                    a.position = a.lowest_position + diff;
-                                    solve = false;
-                                }
-                            }
-                        }
-                    }
-
-                    if solve {
-                        let d = -manifold.normal * manifold.penetration;
-                        let v = a.linvel * delta_time;
-                        if v.signum() == d.signum() {
-                            // nothing
-                        } else {
-                            a.linvel *=
-                                Vec2::new(manifold.normal.y.abs(), manifold.normal.x.abs());
-                            a.position += d;
-                        }
-                    }
-                }
+                let impulse = match dynamics {
+                    Some((i,_)) => Some(i),
+                    None => None
+                };
+                solve_kinematic_for_normal(
+                    &mut a,
+                    -manifold.normal,
+                    manifold.penetration,
+                    impulse,
+                );
             }
         }
         mem::drop(a);
@@ -1085,52 +1078,89 @@ fn solve_system(
         match b.status {
             Status::Static => {}
             Status::Semikinematic => {
-                if let Some((_, impulse)) = dynamics {
-                    b.dynamic_acc += impulse;
-
-                    let d = manifold.normal * manifold.penetration;
-                    let v = b.linvel * delta_time;
-                    if v.signum() == d.signum() {
-                        // nothing
-                    } else {
-                        b.linvel *= Vec2::new(manifold.normal.y.abs(), manifold.normal.x.abs());
-                        b.position += d;
-                    }
-                } else {
-                    let mut solve = true;
-                    let step_angle = up.0.abs().dot(manifold.normal.abs()).acos();
-                    if step_angle > ang_tol.0 {
-                        let up_vector = up.0;
-                        if up_vector.length_squared() != 0.0 {
-                            for &point in &manifold.contacts {
-                                let d = point - b.lowest_position;
-                                let s = d.dot(up_vector);
-                                if s < step.0 {
-                                    let diff = b.position - b.lowest_position;
-                                    b.lowest_position += up_vector * s;
-                                    b.position = b.lowest_position + diff;
-                                    solve = false;
-                                }
-                            }
-                        }
-                    }
-
-                    if solve {
-                        let d = manifold.normal * manifold.penetration;
-                        let v = b.linvel * delta_time;
-                        if v.signum() == d.signum() {
-                            // nothing
-                        } else {
-                            b.linvel *=
-                                Vec2::new(manifold.normal.y.abs(), manifold.normal.x.abs());
-                            b.position += d;
-                        }
-                    }
-                }
+                let impulse = match dynamics {
+                    Some((_,i)) => Some(i),
+                    None => None
+                };
+                solve_kinematic_for_normal(
+                    &mut b,
+                    manifold.normal,
+                    manifold.penetration,
+                    impulse,
+                );
             }
         }
         mem::drop(b);
     }
+}
+
+fn solve_kinematic_for_normal(
+    body : &mut RigidBody, 
+    normal : Vec2, 
+    pen : f32, 
+    impulse : Option<Vec2>, 
+    // up_vector : Vec2, 
+    // angle_tolerance : f32
+) {
+    // Solve for kinematic vs kinematic
+    if let Some(impulse) = impulse {
+        body.dynamic_acc += impulse;
+
+        let d = normal * pen;
+        if body.linvel.signum() != d.signum() {
+            body.linvel = body.linvel.slide(normal);
+            body.position += d;
+        }
+    } 
+    // Solve for kinematic vs static
+    else {
+        let solve = true; // This was originally mutable 
+        // I might restore it later tho i do think that this whole step system is kinda dumb
+        // and should be something the game developers decide on(tho it is indeed easy to remove, so i might restore eventually)
+        // TODO Restore this useful feature
+
+        // let step_angle = up_vector.dot(normal.abs()).acos();
+        // if step_angle > angle_tolerance {
+        //     if up_vector.length_squared() != 0.0 {
+        //         for &point in &manifold.contacts {
+        //             let d = point - body.lowest_position;
+        //             let s = d.dot(up_vector);
+        //             if s < step.0 {
+        //                 let diff = a.position - a.lowest_position;
+        //                 a.lowest_position += up_vector * s;
+        //                 a.position = a.lowest_position + diff;
+        //                 solve = false;
+        //             }
+        //         }
+        //     }
+        // }
+
+        if solve {
+            let d = normal * pen;
+            // let v = a.linvel * delta_time; // since delta_time > 0 ALWAYS, we need not to multiply if we want the signs of the vector
+            // Only act if it tries to go further into the body
+            if body.linvel.signum() != d.signum() {
+                body.linvel = body.linvel.slide(normal);
+                body.position += d;
+            }
+        }
+    }
+    // Check wether the body is on_*
+    // FIXME use a user defined value here
+    const FLOOR_ANGLE : f32 = 0.7;
+    let up = Vec2::new(0.0,1.0);
+    let dot = up.dot(normal);
+
+    if dot >= FLOOR_ANGLE {
+        body.on_floor = Some(normal);
+    }
+    if dot.abs() < FLOOR_ANGLE {
+        body.on_wall = Some(normal);
+    }
+    if dot <= -FLOOR_ANGLE {
+        body.on_ceil = Some(normal);
+    }
+    
 }
 
 pub struct PhysicsStep {
@@ -1164,6 +1194,7 @@ fn physics_step_system(
             continue;
         }
 
+        // Apply gravity for anything that is not static
         if !matches!(body.status, Status::Static) {
             body.accumulator += gravity.0;
         }
@@ -1174,6 +1205,7 @@ fn physics_step_system(
         body.accumulator = Vec2::ZERO;
         body.dynamic_acc = Vec2::ZERO;
 
+        // Make sure we are not surpassing the terminal velocity
         if matches!(body.status, Status::Semikinematic) {
             let vel = body.linvel;
             let limit = body.terminal;
@@ -1198,21 +1230,23 @@ fn physics_step_system(
                 None => body.angvel = 0.0,
             }
         }
-
+        // Apply movement and rotation
         let position = body.position + body.linvel * delta_time;
         body.position = position;
 
         let rotation = body.rotation + body.angvel * delta_time;
         body.rotation = rotation;
 
+        // Apply friction
         match body.status {
             Status::Semikinematic => {
                 if body.linvel.x.abs() <= body.prev_linvel.x.abs() {
                     body.linvel.x *= friction.0
                 }
-                if body.linvel.y.abs() <= body.prev_linvel.y.abs() {
-                    body.linvel.y *= friction.0
-                }
+                // TODO Make friction better
+                // if body.linvel.y.abs() <= body.prev_linvel.y.abs() {
+                //     body.linvel.y *= friction.0
+                // }
                 if body.angvel.abs() <= body.prev_angvel.abs() {
                     body.angvel *= friction.0
                 }
@@ -1253,6 +1287,11 @@ fn physics_step_system(
                 body.lowest_position = position + lowest_point / count as f32;
             }
         }
+
+        // Reset each body's on_*
+        body.on_floor = None;
+        body.on_wall = None;
+        body.on_ceil = None;
     }
 }
 
