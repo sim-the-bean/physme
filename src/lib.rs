@@ -97,7 +97,7 @@ pub mod dim3;
 pub mod prelude2d {
     //! This module re-exports all the things you might need for 2d physics
     //! simulation.
-    pub use crate::common::{GlobalFriction, Mass, Status};
+    pub use crate::common::{GlobalFriction, Mass, Status, Vec2Ext};
     pub use crate::dim2::{
         AngularTolerance, BroadPhase, FixedJoint, FixedJointBehaviour, GlobalGravity, GlobalStep,
         GlobalUp, JointBehaviour, Manifold, MechanicalJoint, MechanicalJointBehaviour,
